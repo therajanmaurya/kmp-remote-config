@@ -79,4 +79,9 @@ ON CONFLICT (id) DO UPDATE SET
   payload_schema   = EXCLUDED.payload_schema,
   allowed_displays = EXCLUDED.allowed_displays,
   requires_ack     = EXCLUDED.requires_ack,
-  renders_ui       = EXCLUDED.renders_ui;
+  renders_ui       = EXCLUDED.renders_ui,
+  -- min_sdk_version and version were omitted, so a later migration bumping either — the
+  -- very mechanism that "structurally removes the blank-surface class" — silently would
+  -- not apply on re-run, while the comment above claimed re-applying updates the schema.
+  min_sdk_version  = EXCLUDED.min_sdk_version,
+  version          = EXCLUDED.version;

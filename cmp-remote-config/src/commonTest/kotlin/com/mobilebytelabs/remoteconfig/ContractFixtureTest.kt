@@ -19,6 +19,13 @@ import kotlin.test.assertTrue
  * a commit that changes the `/v1/configs` response shape without changing this model fails
  * CI. Without it, the one-repo topology buys nothing.
  *
+ * TODO(slice-3): these private WireEnvelope/WireConfig data classes are NOT the shipped SDK
+ * model. Spec §13.4 asks the Kotlin half to deserialize into "the SDK's model", which cannot
+ * happen yet — the shipped `RemoteConfig` is still the old 3.5.28 schema and the rework is
+ * slice 3. Until this points at production types, a commit changing the wire shape AND these
+ * two classes together passes both suites, so the one-repo guarantee is partial here. Do not
+ * mistake a green run for full coverage of that guarantee.
+ *
  * The fixture is inlined rather than read from disk because `commonTest` has no filesystem
  * on every target (js, wasmJs, native). A drifted copy FAILS this test, which is the point —
  * the Deno twin asserts the same bytes against the serializer that produces them.

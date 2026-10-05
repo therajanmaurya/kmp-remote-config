@@ -30,6 +30,7 @@ Deno.serve(async (req) => {
       id.attestationPolicy,
       req.headers.get("X-RC-Attestation"),
       id.appId,
+      id.keyId,
       Deno.env.get("RC_ASSERTION_SECRET"),
     );
     if (gate) return jsonForbidden(gate);

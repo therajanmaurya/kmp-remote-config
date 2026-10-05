@@ -8,10 +8,10 @@ BEGIN
     RAISE EXCEPTION 'FAIL: anon still has USAGE on schema public';
   END IF;
 
-  -- `authenticated` is granted USAGE back narrowly by 001 (the dashboard reaches
-  -- tables through RLS policies on that role, which requires schema USAGE), so the
-  -- assertion for it is about TABLE rights, not schema USAGE: it must hold none by
-  -- default. Each table grants its own.
+  -- Only `anon` is asserted here. `authenticated` deliberately HAS schema USAGE (001
+  -- grants it back so RLS policies can evaluate) and, after 002-006, legitimately holds
+  -- per-table grants — so there is no blanket "no grants" claim to make about it. Its
+  -- boundary is the POLICIES, and rls_test.sql is what proves those.
   IF EXISTS (
     SELECT 1
       FROM information_schema.role_table_grants
@@ -21,5 +21,36 @@ BEGIN
     RAISE EXCEPTION 'FAIL: anon holds table grants in schema public';
   END IF;
 
-  RAISE NOTICE 'PASS: schema public is closed to anon';
+  -- I5 end-state assertion. anon must not be able to EXECUTE ANY routine in public.
+  -- Checked on the real functions rather than on a throwaway one, because Supabase's own
+  -- pg_default_acl row (grantor supabase_admin) re-grants EXECUTE to anon/authenticated on
+  -- newly created functions and `postgres` cannot revoke another grantor's defaults. 007
+  -- sweeps the end state instead; this proves the sweep actually held.
+  IF EXISTS (
+    SELECT 1 FROM pg_proc p
+      JOIN pg_namespace n ON n.oid = p.pronamespace
+     WHERE n.nspname = 'public'
+       AND has_function_privilege('anon', p.oid, 'EXECUTE')
+  ) THEN
+    RAISE EXCEPTION 'FAIL: anon can EXECUTE % routine(s) in public',
+      (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+        WHERE n.nspname='public' AND has_function_privilege('anon', p.oid, 'EXECUTE'));
+  END IF;
+
+  -- `authenticated` is limited to the exact allowlist 007 grants. A new routine that
+  -- forgets its REVOKE/GRANT pair shows up here rather than shipping callable.
+  IF EXISTS (
+    SELECT 1 FROM pg_proc p
+      JOIN pg_namespace n ON n.oid = p.pronamespace
+     WHERE n.nspname = 'public'
+       AND has_function_privilege('authenticated', p.oid, 'EXECUTE')
+       AND p.proname NOT IN ('is_app_member','has_app_role','generate_publishable_key')
+  ) THEN
+    RAISE EXCEPTION 'FAIL: authenticated can EXECUTE a routine outside the allowlist: %',
+      (SELECT string_agg(p.proname, ', ') FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+        WHERE n.nspname='public' AND has_function_privilege('authenticated', p.oid, 'EXECUTE')
+          AND p.proname NOT IN ('is_app_member','has_app_role','generate_publishable_key'));
+  END IF;
+
+  RAISE NOTICE 'PASS: anon closed out of schema public; routine grants match the allowlist';
 END $$;

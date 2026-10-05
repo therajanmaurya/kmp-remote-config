@@ -2,21 +2,34 @@
 -- app_key — the publishable keys an SDK presents, and the identity bound to each.
 -- ============================================================
 
--- base62 over 32 random draws. gen_random_bytes needs pgcrypto (migration 001).
+-- Prefix is `rck_` (remote-config key), NOT `pk_`. `pk_live_`/`pk_test_` is byte-identical
+-- to Stripe's publishable-key format and the secret-output guard matches it as one: every
+-- e2e run, seed read and (eventually) dashboard key listing would raise a false secrets
+-- alert. That is the same alert-fatigue argument that moved the local DSN into psql.sh —
+-- a guard that cries wolf gets ignored, and then it misses a real leak.
+--
+-- base62 by REJECTION SAMPLING, not `% 62`. 256 is not a multiple of 62, so a plain modulo
+-- makes the first 8 alphabet characters ~25% likelier. It does not matter for a
+-- deliberately-public key, but this is the function someone copies when they need a key
+-- that IS secret.
 CREATE OR REPLACE FUNCTION public.generate_publishable_key(p_env text) RETURNS text
 LANGUAGE plpgsql VOLATILE AS $$
 DECLARE
   alphabet text := 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   out text := '';
-  i int;
+  b int;
 BEGIN
   IF p_env NOT IN ('live','test') THEN
     RAISE EXCEPTION 'environment must be live or test, got %', p_env;
   END IF;
-  FOR i IN 1..32 LOOP
-    out := out || substr(alphabet, 1 + (get_byte(gen_random_bytes(1), 0) % 62), 1);
+  WHILE length(out) < 32 LOOP
+    b := get_byte(gen_random_bytes(1), 0);
+    -- 248 = 4*62. Discarding 248..255 leaves a range that divides evenly by 62.
+    IF b < 248 THEN
+      out := out || substr(alphabet, 1 + (b % 62), 1);
+    END IF;
   END LOOP;
-  RETURN 'pk_' || p_env || '_' || out;
+  RETURN 'rck_' || p_env || '_' || out;
 END $$;
 
 CREATE TABLE IF NOT EXISTS public.app_key (
@@ -45,7 +58,11 @@ CREATE TABLE IF NOT EXISTS public.app_key (
     -- every legitimate request from that platform with no way to satisfy the check.
     CONSTRAINT app_key_attestation_platform CHECK (
         attestation_policy <> 'required' OR platform IN ('android','ios')
-    )
+    ),
+    -- The visible prefix must agree with the environment column. Without this a row can
+    -- read `rck_test_…` while being environment='live', so the dashboard shows a key the
+    -- operator will reasonably believe is a sandbox key and it is not.
+    CONSTRAINT app_key_prefix_matches_env CHECK (key LIKE 'rck_' || environment || '_%')
 );
 
 -- Partial index: the Edge Function's only lookup is by key among non-revoked rows.

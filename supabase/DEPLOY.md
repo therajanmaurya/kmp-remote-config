@@ -29,7 +29,7 @@ bash core/scripts/supabase-connect.sh functions deploy <name> --target mbs/kmp-r
 
 ```bash
 for m in 001_schema_hardening 002_app_and_members 003_app_key \
-         004_template 005_config 006_impression; do
+         004_template 005_config 006_impression 007_routine_grant_sweep; do
   bash core/scripts/supabase-connect.sh db-push "supabase/migrations/${m}.sql" \
     --target mbs/kmp-remote-config
 done
@@ -58,13 +58,48 @@ bash core/scripts/supabase-connect.sh psql --target mbs/kmp-remote-config -- \
           nspacl FROM pg_namespace WHERE nspname='public';"
 #   expect: anon_usage = f, and NO bare '=U/' entry in nspacl (an empty grantee is PUBLIC,
 #   and PUBLIC holding USAGE is what made the first local attempt a no-op)
+
+# routine grants — 007's sweep must have held
+bash core/scripts/supabase-connect.sh psql --target mbs/kmp-remote-config -- \
+  "SELECT count(*) AS anon_callable FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+    WHERE n.nspname='public' AND has_function_privilege('anon', p.oid, 'EXECUTE');"
+#   expect: 0
 ```
+
+### Why 007 exists, and the trap it guards
+
+`ALTER DEFAULT PRIVILEGES` in 001 is **not sufficient** for routines. Default privileges are
+stored per grantor, and only the grantor can revoke its own. A fresh Supabase database holds
+two rows for `(public, function)`:
+
+| grantor | default ACL |
+|---|---|
+| `postgres` | `{postgres=X, service_role=X}` — 001's revoke lands here |
+| `supabase_admin` | `{postgres=X, anon=X, authenticated=X, service_role=X}` |
+
+`postgres` is not a member of `supabase_admin`, so it cannot touch the second row. The
+observable effect is that a brand-new function in `public` lands with `=X/postgres` in its
+ACL — an **empty grantee, which is the PUBLIC pseudo-role** — and `anon` then has EXECUTE by
+inheritance with no grant naming it. Same class as the hole that made 001's first draft a
+no-op.
+
+So 007 sweeps the END STATE: revoke from everything, re-grant the allowlist. **A routine
+added in a later migration is not covered** — it must carry its own REVOKE/GRANT pair, and
+`harness_test.sql` asserts the end state so an unguarded addition fails the suite.
+
+### anon retains USAGE on other schemas
+
+Measured on a fresh stack: `graphql_public`, `storage`, `auth`, `extensions` and `realtime`
+all grant `anon` USAGE; only `public` and `vault` do not. This product is safe because every
+path lands in `public`, where `anon` holds nothing — but **enabling the Data API, GraphQL, or
+Storage would open a surface the §5 posture does not cover.** Harden the specific schema
+before turning any of those on.
 
 Then smoke-test identity, which must be LOUD:
 
 ```bash
 BASE="https://<ref>.supabase.co/functions/v1"
-curl -s -o /dev/null -w "bogus key → %{http_code}\n" "$BASE/v1-configs" -H "X-RC-Key: pk_live_bogus"
+curl -s -o /dev/null -w "bogus key → %{http_code}\n" "$BASE/v1-configs" -H "X-RC-Key: rck_live_bogus"
 curl -s -o /dev/null -w "no key    → %{http_code}\n" "$BASE/v1-configs"
 ```
 
@@ -97,9 +132,18 @@ control plane exists to prevent. If the hardening needs changing, write a forwar
 ```bash
 supabase start                  # ports are the 56xxx block, see supabase/config.toml
 bash supabase/tests/run.sh      # all 7 SQL assertions
-deno test --allow-env --allow-read supabase/functions/   # all 4 Deno suites
-bash supabase/tests/seed_local.sh                        # one app + key + 3 configs
+deno test --allow-env --allow-read supabase/functions/   # all Deno suites
+
+# End-to-end (needs the function server up and the seed applied):
+supabase functions serve --no-verify-jwt &
+bash supabase/tests/seed_local.sh
+bash supabase/tests/e2e_configs.sh    # 9 checks incl. revoked key, Vary, schedule window
+bash supabase/tests/e2e_events.sh     # 9 checks incl. the C2 cross-tenant regression guard
 ```
+
+Keys are prefixed `rck_live_` / `rck_test_`, **not** `pk_*`: `pk_live_` is byte-identical to
+Stripe's publishable-key format and the framework's secret-output guard flags it as one, so
+every e2e run and key listing would raise a false secrets alert.
 
 Ports are offset to 56xxx because 54xxx and 55xxx are taken by other projects' local stacks
 (the +1000-per-project convention in `docs/guides/server/LOCAL_SUPABASE_GUIDE.md`).

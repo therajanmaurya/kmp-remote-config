@@ -13,6 +13,7 @@
 # Usage:
 #   bash supabase/tests/psql.sh path/to/file.sql
 #   bash supabase/tests/psql.sh -c "SELECT 1;"
+#   bash supabase/tests/psql.sh -t "SELECT 1;"   # tuples only, for scripted assertions
 #   DB_URL=$(bash supabase/tests/psql.sh --print-url)   # for callers that need it
 #
 # Exit: psql's own status. ON_ERROR_STOP is always on, so a RAISE EXCEPTION in a
@@ -42,6 +43,9 @@ URL=$(resolve_url) || exit $?
 case "${1:-}" in
     --print-url) printf '%s\n' "$URL" ;;
     -c)          shift; psql "$URL" -v ON_ERROR_STOP=1 -q -c "$*" ;;
+    # Tuples-only: a bare value with no header or row count, so a shell test can compare it
+    # directly. Without this, callers passed `-t -c` and it was read as a filename.
+    -t)          shift; psql "$URL" -v ON_ERROR_STOP=1 -q -t -A -c "$*" ;;
     "")          echo "psql.sh: need a .sql path, -c \"<sql>\", or --print-url" >&2; exit 2 ;;
     *)           psql "$URL" -v ON_ERROR_STOP=1 -f "$1" ;;
 esac

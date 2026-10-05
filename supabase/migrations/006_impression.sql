@@ -58,6 +58,14 @@ BEGIN
   IF p_device IS NULL OR length(p_device) = 0 OR length(p_device) > 200 THEN
     RETURN false;
   END IF;
+  -- DELIBERATELY NOT CHECKED: that the config is enabled and inside its schedule window.
+  -- A config disabled (or expired) between the moment a client rendered it and the moment it
+  -- reports the impression is a NORMAL race, and refusing there would under-count real
+  -- deliveries — the opposite of what impression data is for. The row-growth lever this
+  -- leaves is bounded by the device_id length cap above and by p_app scoping, so a caller
+  -- can only create rows against its OWN configs. Revisit if impression volume ever drives
+  -- billing, where over-counting a disabled config would matter.
+  --
   -- Unknown OR foreign config: refused as a normal false return, not an exception, so one
   -- bad id in a batch does not discard the device's other queued events. The caller cannot
   -- tell the two cases apart, which is deliberate — it must not be able to probe which

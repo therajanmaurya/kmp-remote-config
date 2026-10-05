@@ -53,6 +53,14 @@ export async function resolveIdentity(
     return { status: 403, code: "package_mismatch" };
   }
 
+  // app_key.platform is a CONSTRAINT, not a hint. It previously read like one and was
+  // advisory: a key pinned to `android` could assert X-RC-Platform: web and receive
+  // web-targeted configs. A null platform still means "any".
+  if (data.platform) {
+    const asserted = h.get("X-RC-Platform")?.trim();
+    if (asserted !== data.platform) return { status: 403, code: "platform_mismatch" };
+  }
+
   // Only Android reports a signing certificate. Requiring one everywhere would reject
   // every legitimate iOS / desktop / web caller, so the check is driven by whether the
   // KEY registers any digests rather than by the platform header.

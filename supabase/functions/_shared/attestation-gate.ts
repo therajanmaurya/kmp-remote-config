@@ -15,10 +15,11 @@ export async function checkAttestation(
   policy: AttestationPolicy,
   header: string | null,
   appId: string,
+  keyId: string,
   secret: string | undefined,
   nowMs: number = Date.now(),
 ): Promise<string | null> {
-  // `off` is the explicit opt-out: the pk_test_* development path, where Play Integrity
+  // `off` is the explicit opt-out: the rck_test_* development path, where Play Integrity
   // rejects sideloaded builds.
   if (policy === "off") return null;
 
@@ -49,6 +50,11 @@ export async function checkAttestation(
   // An assertion minted for a different app must not authorise writes to this one, or one
   // tenant's genuine app could poison another tenant's impression data.
   if (claims.appId !== appId) return "attestation_app_mismatch";
+
+  // …and it is bound to the KEY it was minted for, not merely the app. Comparing only the
+  // app id made per-key revocation not actually revoke: revoke key A, and an assertion
+  // minted with A keeps working when presented alongside key B of the same app.
+  if (claims.keyId !== keyId) return "attestation_key_mismatch";
 
   return null;
 }

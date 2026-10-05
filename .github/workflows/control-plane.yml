@@ -59,6 +59,27 @@ jobs:
             exit 1
           fi
           echo "✓ mutation correctly detected"
+          # RESTORE. Without this the e2e steps below run against a database whose
+          # config_select is still USING(true) — the mutation would silently become the
+          # state under test, which is worse than not checking at all.
+          psql "$DB" -q -c "DROP POLICY config_select ON public.config;
+                            CREATE POLICY config_select ON public.config
+                              FOR SELECT TO authenticated
+                              USING (public.is_app_member(app_id));"
+          bash supabase/tests/psql.sh supabase/tests/rls_test.sql >/dev/null
+          echo "✓ policy restored and rls_test green again"
+
+      # End-to-end against the real routes. These carry the C2 cross-tenant regression guard
+      # and the revoked-key / Vary / schedule-window checks that no unit test can pin.
+      - name: Serve functions
+        run: |
+          nohup supabase functions serve --no-verify-jwt > /tmp/fn.log 2>&1 &
+          until grep -qi "Serving functions" /tmp/fn.log; do sleep 1; done
+      - name: Seed + end-to-end
+        run: |
+          bash supabase/tests/seed_local.sh
+          bash supabase/tests/e2e_configs.sh
+          bash supabase/tests/e2e_events.sh
 
       - name: Stop stack
         if: always()

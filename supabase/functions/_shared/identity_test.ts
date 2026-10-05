@@ -30,7 +30,7 @@ const KEY_ROW = {
 
 function headers(extra: Record<string, string> = {}) {
   return new Headers({
-    "X-RC-Key": "pk_live_x",
+    "X-RC-Key": "rck_live_x",
     "X-RC-Package": "com.example.app",
     "X-RC-Cert": "AA:BB",
     "X-RC-Platform": "android",
@@ -75,6 +75,23 @@ Deno.test("cert digest not in the registered set → 403 cert_mismatch", async (
 Deno.test("cert is not required on a platform that has none", async () => {
   const row = { ...KEY_ROW, platform: "ios", cert_digests: [] };
   const h = headers({ "X-RC-Platform": "ios" });
+  h.delete("X-RC-Cert");
+  assertEquals("appId" in await resolveIdentity(dbStub(row), h), true);
+});
+
+// M7 — app_key.platform read like a constraint and was advisory: a key pinned to `android`
+// could present X-RC-Platform: web and receive web-targeted configs. Low impact (the
+// content is public by design) but a column that looks like a constraint should be one.
+Deno.test("platform mismatch against a pinned key → 403 platform_mismatch", async () => {
+  assertEquals(
+    await resolveIdentity(dbStub(KEY_ROW), headers({ "X-RC-Platform": "web" })),
+    { status: 403, code: "platform_mismatch" },
+  );
+});
+
+Deno.test("a key with no pinned platform accepts any asserted platform", async () => {
+  const row = { ...KEY_ROW, platform: null, cert_digests: [] };
+  const h = headers({ "X-RC-Platform": "web" });
   h.delete("X-RC-Cert");
   assertEquals("appId" in await resolveIdentity(dbStub(row), h), true);
 });

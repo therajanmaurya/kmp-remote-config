@@ -8,7 +8,7 @@ INSERT INTO public.app (id, owner_id, slug, display_name, platforms)
 VALUES ('d0000000-0000-0000-0000-0000000000aa','d0000000-0000-0000-0000-00000000d001','app-a','App A','{android}')
   ON CONFLICT (id) DO NOTHING;
 INSERT INTO public.app_key (app_id, key, environment, platform, bundle_id)
-VALUES ('d0000000-0000-0000-0000-0000000000aa','pk_live_LOCALTESTKEY0000000000000000000','live','android','com.example.app')
+VALUES ('d0000000-0000-0000-0000-0000000000aa','rck_live_LOCALTESTKEY0000000000000000000','live','android','com.example.app')
   ON CONFLICT (key) DO NOTHING;
 -- A rendering config AND a feature flag, so the response shape is exercised both ways.
 INSERT INTO public.config (id, app_id, template_id, payload, display, is_enabled, priority)
