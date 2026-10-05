@@ -33,8 +33,14 @@ REVOKE ALL ON public.impression FROM anon, authenticated;
 
 -- Returns TRUE when the event was applied, FALSE when it was a recognised retry.
 -- SECURITY DEFINER so the Edge Function can call it via rpc() without table grants.
+-- p_app is the FIRST parameter and is not optional. Deriving app_id from the config row
+-- alone (the original design) meant any holder of any valid key could write events against
+-- ANY config uuid in the control plane — poisoned counts and forged dismissals under another
+-- tenant. Attestation does not catch it either: the attacker presents their own genuine
+-- app's assertion, which passes the app-binding check in gate.ts. The tenant boundary has
+-- to be enforced HERE, at the one place every caller routes through.
 CREATE OR REPLACE FUNCTION public.record_event(
-    p_config uuid, p_device text, p_type text, p_event_id text
+    p_app uuid, p_config uuid, p_device text, p_type text, p_event_id text
 ) RETURNS boolean
 LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = public, pg_temp
@@ -47,8 +53,17 @@ BEGIN
   IF p_type NOT IN ('impression','dismiss','ack','action') THEN
     RAISE EXCEPTION 'unknown event type %', p_type;
   END IF;
-  SELECT app_id INTO v_app FROM public.config WHERE id = p_config;
-  IF NOT FOUND THEN RAISE EXCEPTION 'unknown config %', p_config; END IF;
+  -- Bounded: device_id is client-supplied and keys a row, so an unbounded value is an
+  -- unbounded-storage lever. 200 chars is far above any real opaque device identifier.
+  IF p_device IS NULL OR length(p_device) = 0 OR length(p_device) > 200 THEN
+    RETURN false;
+  END IF;
+  -- Unknown OR foreign config: refused as a normal false return, not an exception, so one
+  -- bad id in a batch does not discard the device's other queued events. The caller cannot
+  -- tell the two cases apart, which is deliberate — it must not be able to probe which
+  -- config uuids exist in other tenants.
+  SELECT app_id INTO v_app FROM public.config WHERE id = p_config AND app_id = p_app;
+  IF NOT FOUND THEN RETURN false; END IF;
 
   INSERT INTO public.impression (config_id, device_id, app_id)
   VALUES (p_config, p_device, v_app)
@@ -77,5 +92,5 @@ END $$;
 
 -- Callable by service_role only (the Edge Function path). Migration 001 already revoked
 -- EXECUTE from PUBLIC; this makes the intent explicit and survives a default-privileges change.
-REVOKE ALL ON FUNCTION public.record_event(uuid, text, text, text) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.record_event(uuid, text, text, text) TO service_role;
+REVOKE ALL ON FUNCTION public.record_event(uuid, uuid, text, text, text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.record_event(uuid, uuid, text, text, text) TO service_role;

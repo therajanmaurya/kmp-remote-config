@@ -1,7 +1,7 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { isIdentityError, resolveIdentity } from "../_shared/identity.ts";
 import { corsPreflight, jsonForbidden, jsonOk } from "../_shared/respond.ts";
-import { checkAttestation } from "./gate.ts";
+import { checkAttestation } from "../_shared/attestation-gate.ts";
 import { parseEventBatch } from "./parse.ts";
 
 Deno.serve(async (req) => {
@@ -49,19 +49,28 @@ Deno.serve(async (req) => {
     // rest of a device's queued events.
     try {
       const { data, error } = await db.rpc("record_event", {
+        // p_app scopes the write to the app resolved from the key. Without it the client's
+        // config_id alone decided the tenant, and any valid key could write anywhere.
+        p_app: id.appId,
         p_config: e.config_id,
         p_device: batch.device_id,
         p_type: e.type,
         p_event_id: e.event_id,
       });
       results.push({ event_id: e.event_id, applied: !error && data === true });
-    } catch {
+    } catch (err) {
+      // Shape only: which stage failed and the error class. Never the config id or device id.
+      console.error(JSON.stringify({
+        route: "v1-events",
+        stage: "record_event",
+        error: err instanceof Error ? err.name : undefined,
+      }));
       results.push({ event_id: e.event_id, applied: false });
     }
   }
 
-  return new Response(
-    JSON.stringify({ accepted: results.filter((r) => r.applied).length, results }),
-    { status: 202, headers: { "content-type": "application/json" } },
-  );
+  // Built via jsonOk so the CORS set is defined in ONE place. Hand-rolling the headers here
+  // meant OPTIONS passed preflight and then the browser blocked the actual 202 — the silent
+  // half of a CORS failure, and §14 requires this to serve a browser consumer.
+  return jsonOk({ accepted: results.filter((r) => r.applied).length, results }, 0, 202);
 });

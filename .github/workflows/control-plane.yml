@@ -1,0 +1,101 @@
+# Control-plane tests — the SQL assertions, the Deno route suites, and the wire contract.
+#
+# None of this ran in CI before (review finding I6). Spec §13.1 asks for the RLS negative
+# tests "run in CI against a seeded database", and §13.4's entire point is that a commit
+# changing the wire shape without changing the SDK model "fails in CI". Until this existed,
+# the highest-risk surface in the product — cross-tenant isolation — was protected only by
+# whoever remembered to run run.sh locally.
+name: Control plane
+
+on:
+  push:
+    branches: [dev, release]
+    paths:
+      - 'supabase/**'
+      - 'contract/**'
+      - 'cmp-remote-config/src/**Test/**'
+      - '.github/workflows/control-plane.yml'
+  pull_request:
+    paths:
+      - 'supabase/**'
+      - 'contract/**'
+      - 'cmp-remote-config/src/**Test/**'
+      - '.github/workflows/control-plane.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  sql:
+    name: SQL assertions (RLS, schema, tenancy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      # Starts Postgres + applies every migration in supabase/migrations in order.
+      - name: Start local stack
+        run: supabase start
+
+      # The suite is self-contained: harness proves the hardening posture, then each table's
+      # invariants, then cross-tenant isolation last because it asserts the combined effect.
+      - name: Run SQL assertions
+        run: bash supabase/tests/run.sh
+
+      # A gate that cannot fail proves nothing. Widening one policy MUST break rls_test —
+      # if this step succeeds, the isolation suite has gone blind and the build should fail.
+      - name: Prove the RLS gate can fail (mutation check)
+        run: |
+          set -uo pipefail
+          DB=$(bash supabase/tests/psql.sh --print-url)
+          psql "$DB" -q -c "DROP POLICY config_select ON public.config;
+                            CREATE POLICY config_select ON public.config
+                              FOR SELECT TO authenticated USING (true);"
+          if bash supabase/tests/psql.sh supabase/tests/rls_test.sql >/dev/null 2>&1; then
+            echo "::error::rls_test PASSED with config_select widened to USING(true) — the isolation suite cannot fail and is therefore worthless"
+            exit 1
+          fi
+          echo "✓ mutation correctly detected"
+
+      - name: Stop stack
+        if: always()
+        run: supabase stop
+
+  deno:
+    name: Edge Function suites
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Type-check every route
+        run: |
+          for f in supabase/functions/*/index.ts; do deno check "$f"; done
+      - name: Run suites
+        run: deno test --allow-env --allow-read supabase/functions/
+
+  contract:
+    name: Wire contract (Deno ↔ Kotlin)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+
+      # Both halves must assert the SAME fixture. This pairing is the only thing that makes
+      # the one-repo topology worth anything: change the response shape without changing the
+      # Kotlin model and exactly one of these two steps fails.
+      - name: Deno half
+        run: deno test --allow-env --allow-read supabase/functions/v1-configs/contract_test.ts
+      - name: Kotlin half
+        run: ./gradlew :cmp-remote-config:jvmTest --tests '*ContractFixture*'

@@ -3,12 +3,17 @@ const CORS: Record<string, string> = {
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers":
     "authorization, content-type, x-rc-key, x-rc-package, x-rc-cert, x-rc-platform, x-rc-app-version, x-rc-sdk-version, x-rc-device, x-rc-attestation",
-  "Vary": "Origin",
+  // Vary on EVERY header that discriminates the body. The URL is byte-identical across
+  // tenants (/v1-configs?screen=home) and the only tenant discriminator is X-RC-Key, so
+  // `public` caching without this lets a shared cache serve app A's configs to app B. The
+  // platform/version headers matter too: omitting them mixes audiences within one tenant
+  // and defeats the version-gate fail-closed logic in audience.ts.
+  "Vary": "Origin, X-RC-Key, X-RC-Platform, X-RC-App-Version, X-RC-SDK-Version",
 };
 
-export function jsonOk(body: unknown, cacheSeconds = 0): Response {
+export function jsonOk(body: unknown, cacheSeconds = 0, status = 200): Response {
   return new Response(JSON.stringify(body), {
-    status: 200,
+    status,
     headers: {
       ...CORS,
       "content-type": "application/json",

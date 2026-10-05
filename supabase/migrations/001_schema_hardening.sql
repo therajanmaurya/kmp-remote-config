@@ -10,6 +10,10 @@
 -- `anon` is on neither path and therefore gets nothing.
 -- ============================================================
 CREATE EXTENSION IF NOT EXISTS pgcrypto;  -- gen_random_uuid(), gen_random_bytes()
+-- pg_jsonschema: migration 005 validates config.payload against template.payload_schema.
+-- Without it the dashboard form is the ONLY validator, which is §2.3's defect exactly —
+-- an operator authors a row the client cannot render and hears about it from a user.
+CREATE EXTENSION IF NOT EXISTS pg_jsonschema WITH SCHEMA extensions;
 
 -- FROM PUBLIC, not just FROM anon. Schema `public` ships with USAGE granted to the
 -- PUBLIC pseudo-role (visible as the `=U/pg_database_owner` entry in pg_namespace.nspacl,
@@ -28,7 +32,12 @@ REVOKE EXECUTE ON ALL ROUTINES IN SCHEMA public FROM PUBLIC, anon, authenticated
 -- default and the hardening silently decays as the schema grows.
 ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON TABLES    FROM anon, authenticated;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON SEQUENCES FROM anon, authenticated;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC;
+-- FROM PUBLIC, anon, authenticated — all three. Revoking only FROM PUBLIC leaves
+-- Supabase's own `ALTER DEFAULT PRIVILEGES ... GRANT ALL ON FUNCTIONS TO anon,
+-- authenticated` in force, so the NEXT function created in public ships EXECUTE-able by
+-- every signed-in operator with no grant line in the diff to notice. Measured before this
+-- fix: a brand-new function was executable by both roles while a brand-new table was not.
+ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC, anon, authenticated;
 
 -- Grant USAGE back to exactly the roles on a real trust path, and nothing else:
 --   postgres / service_role — the Edge Functions' path (RLS bypassed, function is the boundary)

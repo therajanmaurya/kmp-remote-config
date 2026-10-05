@@ -37,8 +37,15 @@ CREATE TRIGGER trg_app_touch BEFORE UPDATE ON public.app
 
 -- Creating an app makes the creator its owner-member. Without this, every policy below
 -- would deny the creator access to the app they just created.
+-- SECURITY DEFINER is REQUIRED here, not a convenience. As SECURITY INVOKER this INSERT
+-- runs as `authenticated` and must satisfy app_member_write's
+-- WITH CHECK (has_app_role(app_id,'owner')) — which is FALSE, because the row being
+-- inserted IS the app's first membership row. That bootstrap paradox made it impossible
+-- for a signed-in operator to create an app at all.
 CREATE OR REPLACE FUNCTION public.app_owner_membership() RETURNS trigger
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
 BEGIN
   INSERT INTO public.app_member (app_id, user_id, role)
   VALUES (NEW.id, NEW.owner_id, 'owner')
@@ -83,8 +90,13 @@ ALTER TABLE public.app_member FORCE ROW LEVEL SECURITY;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.app        TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.app_member TO authenticated;
 
+-- `OR owner_id = auth.uid()` is load-bearing, not redundant. INSERT ... RETURNING requires
+-- the SELECT policy to pass for the NEW row, and membership is created by an AFTER trigger,
+-- so at that instant is_app_member() is still false. PostgREST and supabase-js ALWAYS use
+-- RETURNING (`.select()` / Prefer: return=representation), so without this the dashboard's
+-- actual create-app call fails even though the row is written.
 CREATE POLICY app_select ON public.app FOR SELECT TO authenticated
-    USING (public.is_app_member(id));
+    USING (public.is_app_member(id) OR owner_id = auth.uid());
 CREATE POLICY app_insert ON public.app FOR INSERT TO authenticated
     WITH CHECK (owner_id = auth.uid());
 CREATE POLICY app_update ON public.app FOR UPDATE TO authenticated

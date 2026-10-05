@@ -1,6 +1,6 @@
 import { assertEquals } from "jsr:@std/assert@1";
 import { mintAssertion, TTL_MS } from "../v1-attest/assertion.ts";
-import { checkAttestation } from "./gate.ts";
+import { checkAttestation } from "./attestation-gate.ts";
 
 const SECRET = "test-secret-at-least-32-bytes-long!!";
 const T0 = 1_760_000_000_000;
@@ -9,9 +9,32 @@ Deno.test("policy off: no assertion needed", async () => {
   assertEquals(await checkAttestation("off", null, "a1", SECRET, T0), null);
 });
 
-Deno.test("missing assertion is refused for preferred and required", async () => {
-  assertEquals(await checkAttestation("preferred", null, "a1", SECRET, T0), "attestation_required");
+Deno.test("required refuses a missing assertion", async () => {
+  assertEquals(await checkAttestation("required", null, "a1", SECRET, T0), "attestation_required");
   assertEquals(await checkAttestation("required", "", "a1", SECRET, T0), "attestation_required");
+});
+
+// RULING (I8): `preferred` means VERIFY IF PRESENT, not refuse-if-absent.
+// The spec contradicts itself — §7.3's headline says attestation is "required on
+// /v1/events" while its own platform table says desktop/JS/wasm "falls back to asserted
+// identity", and §8.2 says "required PER KEY POLICY". Taking the refuse reading bricks the
+// write path for 100% of real traffic: every key defaults to `preferred`, and
+// desktop/web/wasm can NEVER mint an assertion (/v1/attest 403s
+// attestation_unsupported_platform), so they would be permanently unable to record events.
+Deno.test("preferred ALLOWS an absent assertion", async () => {
+  assertEquals(await checkAttestation("preferred", null, "a1", SECRET, T0), null);
+  assertEquals(await checkAttestation("preferred", "", "a1", SECRET, T0), null);
+});
+
+// …but a PRESENT-and-bad one is still refused, so "expiry is a refusal, never treated as
+// absent" survives the ruling. This is the half that matters for review-focus #5.
+Deno.test("preferred REFUSES a present-but-invalid assertion", async () => {
+  assertEquals(await checkAttestation("preferred", "garbage", "a1", SECRET, T0), "attestation_invalid");
+  const expired = await mintAssertion("a1", "k1", SECRET, T0);
+  assertEquals(
+    await checkAttestation("preferred", expired, "a1", SECRET, T0 + TTL_MS + 1),
+    "attestation_invalid",
+  );
 });
 
 // THE finding this file exists for: the gate used to check only that the header was

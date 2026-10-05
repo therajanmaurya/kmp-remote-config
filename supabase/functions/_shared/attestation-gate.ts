@@ -1,4 +1,4 @@
-import type { AttestationPolicy } from "../_shared/identity.ts";
+import type { AttestationPolicy } from "./identity.ts";
 import { verifyAssertion } from "../v1-attest/assertion.ts";
 
 /**
@@ -18,12 +18,24 @@ export async function checkAttestation(
   secret: string | undefined,
   nowMs: number = Date.now(),
 ): Promise<string | null> {
-  // An explicit opt-out (the pk_test_* development path, where Play Integrity rejects
-  // sideloaded builds) is the only way to write without an assertion.
+  // `off` is the explicit opt-out: the pk_test_* development path, where Play Integrity
+  // rejects sideloaded builds.
   if (policy === "off") return null;
 
   const token = header?.trim();
-  if (!token) return "attestation_required";
+  if (!token) {
+    // RULING (I8): `preferred` ALLOWS an absent assertion; only `required` demands one.
+    //
+    // The spec contradicts itself — §7.3's headline says attestation is "required on
+    // /v1/events", while its own platform table says desktop/JS/wasm "falls back to
+    // asserted identity" and §8.2 says "required PER KEY POLICY". Reading `preferred` as
+    // refuse-if-absent bricks the write path for all real traffic: every key defaults to
+    // `preferred`, and desktop/web/wasm can never mint an assertion at all (/v1/attest
+    // refuses attestation_unsupported_platform), so those platforms could never record an
+    // event. A PRESENT-but-invalid token is still refused below, so "expiry is a refusal,
+    // never treated as absent" is preserved.
+    return policy === "required" ? "attestation_required" : null;
+  }
 
   // No server secret ⇒ cannot verify ⇒ refuse. Passing here would accept every assertion
   // on a misconfigured deployment, which is the failure mode this whole gate exists for.

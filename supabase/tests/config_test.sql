@@ -43,6 +43,25 @@ BEGIN
           '{"title":"T","summary":"S","policy_url":"https://e.test/p","effective_at":"2026-11-01T00:00:00Z"}',
           'fullscreen', false);
 
+  -- payload must validate against the template's JSON Schema. Without this the only
+  -- validator is the dashboard form, which puts us back at §2.3: an operator authors a row
+  -- the client cannot render and finds out from a user.
+  BEGIN
+    INSERT INTO public.config (app_id, template_id, payload, display)
+    VALUES ('aaaaaaaa-0000-0000-0000-000000000001','announcement','{"body":"no title here"}','dialog');
+    RAISE EXCEPTION 'FAIL: payload missing a required property was accepted';
+  EXCEPTION WHEN raise_exception THEN
+    IF SQLERRM LIKE 'FAIL:%' THEN RAISE; END IF;
+  END;
+
+  BEGIN
+    INSERT INTO public.config (app_id, template_id, payload, display)
+    VALUES ('aaaaaaaa-0000-0000-0000-000000000001','update_available','{"store_url":"https://x.test"}','dialog');
+    RAISE EXCEPTION 'FAIL: update_available without forced was accepted';
+  EXCEPTION WHEN raise_exception THEN
+    IF SQLERRM LIKE 'FAIL:%' THEN RAISE; END IF;
+  END;
+
   RAISE NOTICE 'PASS: config invariants hold';
 END $$;
 ROLLBACK;

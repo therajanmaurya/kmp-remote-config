@@ -1,5 +1,6 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { isIdentityError, resolveIdentity } from "../_shared/identity.ts";
+import { checkAttestation } from "../_shared/attestation-gate.ts";
 import { corsPreflight, failSoftConfigs, jsonForbidden, jsonOk } from "../_shared/respond.ts";
 import { type ConfigRow, matchesAudience, sdkCanRender, type TemplateRow, toWireConfig } from "./audience.ts";
 
@@ -14,19 +15,24 @@ Deno.serve(async (req) => {
     const url = Deno.env.get("SUPABASE_URL");
     const svc = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     // A missing binding is an operator mistake, not something the app should break over.
-    if (!url || !svc) return failSoftConfigs();
+    if (!url || !svc) return failSoft("env_binding_missing");
 
     const db = createClient(url, svc, { auth: { persistSession: false } });
 
     const id = await resolveIdentity(db, req.headers);
     if (isIdentityError(id)) return jsonForbidden(id.code);
 
-    // Reads are policy-driven: `required` demands an assertion here, `preferred`/`off` do
-    // not. Requiring it on every read would make the response per-device and destroy the
-    // edge cache, to protect content that is rendered to users anyway.
-    if (id.attestationPolicy === "required" && !req.headers.get("X-RC-Attestation")) {
-      return jsonForbidden("attestation_required");
-    }
+    // VERIFIES, not merely detects. This route previously accepted any non-empty
+    // X-RC-Attestation, so a key set to `required` had a control that reported working and
+    // did not: a garbage string returned 200 with the full payload. Same class as the
+    // write-path hole, in the sibling route.
+    const gate = await checkAttestation(
+      id.attestationPolicy,
+      req.headers.get("X-RC-Attestation"),
+      id.appId,
+      Deno.env.get("RC_ASSERTION_SECRET"),
+    );
+    if (gate) return jsonForbidden(gate);
 
     const h = req.headers;
     const ctx = {
@@ -35,6 +41,12 @@ Deno.serve(async (req) => {
       sdkVersion: h.get("X-RC-SDK-Version"),
       screen: new URL(req.url).searchParams.get("screen"),
     };
+
+    // A missing SDK version fails every template's min_sdk_version check, so ONE absent
+    // header silently blacks out the whole product — indistinguishable from "no configs",
+    // which is the exact defect §2.1 describes. Integration misconfiguration must be loud,
+    // same class as a bad package id.
+    if (!ctx.sdkVersion?.trim()) return jsonForbidden("sdk_version_missing");
 
     const nowIso = new Date().toISOString();
     // Scoped by the app resolved from the key. service_role bypasses RLS, so this scoping
@@ -50,7 +62,7 @@ Deno.serve(async (req) => {
       .or(`ends_at.is.null,ends_at.gte.${nowIso}`)
       .order("priority", { ascending: false });
 
-    if (error) return failSoftConfigs();
+    if (error) return failSoft("config_query_failed");
 
     const configs = ((data ?? []) as unknown as Row[])
       .filter((r) => r.template != null)
@@ -61,7 +73,24 @@ Deno.serve(async (req) => {
     // No device identity participates in this response, so it is shared across every device
     // in the same audience tuple — which is what keeps it effectively free at the edge.
     return jsonOk({ schema_version: 1, configs }, 60);
-  } catch {
-    return failSoftConfigs();
+  } catch (e) {
+    return failSoft("unhandled", e);
   }
 });
+
+/**
+ * Fail soft, but never silently. §8.1 requires the failure be reported, "because a fetch
+ * failure and an empty set are otherwise indistinguishable — the exact gap §2.1 describes".
+ * Without this emit the server reproduces the very defect the product exists to remove.
+ *
+ * Operation SHAPE only: a stage code and an error class. Never config ids, payloads, or
+ * device_id.
+ */
+function failSoft(stage: string, e?: unknown): Response {
+  console.error(JSON.stringify({
+    route: "v1-configs",
+    stage,
+    error: e instanceof Error ? e.name : undefined,
+  }));
+  return failSoftConfigs();
+}

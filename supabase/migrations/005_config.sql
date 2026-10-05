@@ -55,6 +55,13 @@ BEGIN
     RAISE EXCEPTION 'display % not allowed for template % (allowed: %)',
       NEW.display, t.id, t.allowed_displays;
   END IF;
+  -- The server owns renderability (§4): a payload that does not satisfy its template's
+  -- schema can never render, so it must not be storable. The dashboard form is a
+  -- convenience, not the validator. The schema argument is `json`, not `jsonb` (checked
+  -- against pg_get_function_arguments), so payload_schema needs the cast.
+  IF NOT extensions.jsonb_matches_schema(t.payload_schema::json, NEW.payload) THEN
+    RAISE EXCEPTION 'payload does not satisfy the schema for template %', t.id;
+  END IF;
   -- A terms change a user can swipe away has not been accepted.
   IF t.requires_ack AND NEW.is_dismissible THEN
     RAISE EXCEPTION 'template % requires acknowledgement, so is_dismissible must be false', t.id;

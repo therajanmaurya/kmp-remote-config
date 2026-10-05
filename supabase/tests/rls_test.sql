@@ -27,7 +27,7 @@ BEGIN
 END $$;
 
 DO $$
-DECLARE n int;
+DECLARE n int; n_app uuid;
 BEGIN
   -- ── user A must not see user B's anything ────────────────────────────────
   PERFORM pg_temp.as_user('11111111-1111-1111-1111-111111111111');
@@ -86,7 +86,36 @@ BEGIN
     WHEN raise_exception THEN IF SQLERRM LIKE 'FAIL:%' THEN RAISE; END IF;
   END;
 
+  -- ── POSITIVE PATH: the intended user must be ALLOWED ────────────────────
+  -- The suite's systematic blind spot (found in review): every fixture above is seeded as
+  -- `postgres`, which has BYPASSRLS, so the tests prove WHO IS DENIED and never prove that
+  -- an operator can do their job. App creation as `authenticated` is the dashboard's actual
+  -- path, and it was broken by two independent policy bugs that no negative test could see.
+  PERFORM pg_temp.as_user('11111111-1111-1111-1111-111111111111');
+
+  -- Plain INSERT must succeed: the owner-membership trigger writes to app_member, whose
+  -- write policy demands owner role on an app that has no members yet (bootstrap paradox).
+  INSERT INTO public.app (owner_id, slug, display_name)
+  VALUES ('11111111-1111-1111-1111-111111111111','fresh-app','Fresh');
+
+  -- INSERT ... RETURNING must ALSO succeed. RETURNING requires the SELECT policy to pass
+  -- for the new row, and membership is created by an AFTER trigger — so a policy keyed only
+  -- on membership fails here. PostgREST/supabase-js ALWAYS use RETURNING, so this is the
+  -- dashboard's real call, not a corner case.
+  INSERT INTO public.app (owner_id, slug, display_name)
+  VALUES ('11111111-1111-1111-1111-111111111111','fresh-app-2','Fresh 2')
+  RETURNING id INTO STRICT n_app;
+
+  -- the trigger's membership row must be visible to its owner
+  SELECT count(*) INTO n FROM public.app_member
+   WHERE app_id = n_app AND user_id = '11111111-1111-1111-1111-111111111111' AND role = 'owner';
+  IF n <> 1 THEN RAISE EXCEPTION 'FAIL: owner membership not created/visible for a self-created app'; END IF;
+
+  -- and the owner can then author a config in it
+  INSERT INTO public.config (app_id, template_id, payload, display)
+  VALUES (n_app, 'announcement', '{"title":"ok","body":"ok"}', 'dialog');
+
   RESET ROLE;
-  RAISE NOTICE 'PASS: cross-tenant isolation holds';
+  RAISE NOTICE 'PASS: cross-tenant isolation holds + operator can create and author';
 END $$;
 ROLLBACK;
