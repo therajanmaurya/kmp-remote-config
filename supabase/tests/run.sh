@@ -12,6 +12,8 @@ TESTS=(
   template_test.sql
   config_test.sql
   impression_test.sql
+  rate_limit_test.sql
+  custom_template_test.sql
   rls_test.sql
 )
 

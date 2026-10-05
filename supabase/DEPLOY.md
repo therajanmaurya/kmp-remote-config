@@ -189,3 +189,82 @@ repo yet, so **`/v1/attest` refuses every request by design** — an attestation
 without verification would hand out assertions to anyone while looking secure. Consequence: a
 key set to `attestation_policy: required` rejects all traffic until that verifier ships
 (slice 3). Keys left at the `preferred` default are unaffected. See spec §7.3 as amended.
+
+
+## Rate limiting (migration 008) — deployed 2026-10-05
+
+O2's numbers, enforced in Postgres rather than in the Deno isolate. An in-isolate counter
+divides the real limit by however many isolates are warm, so a "60/min" rule would admit
+60 × N; the only state every isolate shares on this request's path is the database.
+
+| Subject | Limit | Source |
+|---|---|---|
+| `key:<id>:read` | `app_key.rate_limit_per_min` (default 60) | per-key column, operator-tunable |
+| `key:<id>:events` | 600/min | constant |
+| `device:<app>:<device>` | 120/min | constant |
+
+- **Fails open.** An unreachable limiter admits the request: it is cost control, not the
+  authorization boundary (that is the key binding plus the attestation gate, untouched by
+  this path). Failing closed would trade a bounded cost problem for an unbounded
+  availability one.
+- **429, not an empty list.** A limited caller is correctly configured and merely too
+  fast, so `{"error":"rate_limited","retry_after":N}` with `Retry-After` and
+  `X-RateLimit-*` is actionable. `no-store`, so a cached 429 cannot pin a tenant past
+  their own reset.
+- **Quota headers are omitted from the cacheable 200.** `/v1/configs` is
+  `public, max-age=60`, so a shared cache would replay one device's remaining count to
+  every other device in the audience tuple. A confidently wrong header is worse than an
+  absent one.
+- **`purge_rate_buckets()` needs scheduling.** Device subjects are unbounded in
+  cardinality. It is not called from the hot path (that would add a DELETE scan to every
+  request to save a nightly job). Until scheduled, growth is one row per distinct device
+  per app — bounded by the install base. Same scheduler O3's 90-day impression retention
+  will need.
+- **Not covered:** a caller hammering with an *invalid* key is not rate-limited, because
+  the subject is the resolved key id and an invalid key 403s before the limiter. That
+  needs an IP-keyed limit, which O2 does not specify.
+
+Verified live on `gohifhjcvsawcdhcpbkw`: a key at 3/min returned `200 200 200 429 429`,
+with `retry-after: 52`, `cache-control: no-store`, `x-ratelimit-limit: 3`.
+
+Migration 008 carries its own `REVOKE`/`GRANT` pair, as 007's sweep warns a later
+migration must. Without it, both new functions landed with `=X/postgres` in `proacl` — an
+empty grantee, i.e. the PUBLIC pseudo-role — so `anon` and `authenticated` held EXECUTE by
+inheritance with no grant naming either, and `harness_test.sql` failed with
+"anon can EXECUTE 2 routine(s) in public". The sweep's warning is load-bearing, not
+decorative.
+
+
+## Custom templates and community sharing (migration 009) — deployed 2026-10-05
+
+Per-app custom templates (`is_builtin = false`, `app_id` set, id prefixed `c_`) plus an
+opt-in community catalog. Spec §15 has the decision and what remains open.
+
+| Guarantee | How it is enforced |
+|---|---|
+| A template is born private | INSERT policy permits only `visibility = 'private'`; `template_guard` refuses otherwise |
+| Consent cannot be forged | `shared_at` / `shared_by` stamped by the trigger from `now()` / `auth.uid()`, never from the client |
+| Withdrawal is real | `community → private` clears the consent record; already-forked copies keep working |
+| A builtin cannot be "shared" | `template_builtin_not_shareable` — it is already global, and 'community' would credit a user for our seed data |
+| A custom id cannot pass for ours | `template_custom_id_shape` requires `c_…`, so provenance is legible in `config.template_id` and in SDK logs |
+| Identity is immutable | `template_guard` refuses changes to `id`, `is_builtin`, `app_id` |
+| One tenant cannot reach another's | `template_select` exposes builtins, own-app rows, and `community` only; a private row of another app is invisible, and a refused fork says "unknown template" rather than confirming it exists |
+| Adoption copies | `fork_template` writes a private copy with `forked_from`; it is SECURITY DEFINER and checks `has_app_role` on the **destination**, so it cannot be used to plant templates in someone else's app |
+| Deletion is owner-only | an editor may create and share; deleting a template others forked from is not recoverable |
+
+**Pre-existing hole closed here:** `config_template_coherence` resolved the template by id
+with no tenancy check. Harmless while every template was global; with per-app templates a
+config could reference another tenant's private row, coupling the two apps (A's delete
+breaks B's live configs) and leaking A's schema through validation errors. The trigger now
+rejects it with "belongs to another app; fork it into this app first".
+
+Verified live on `gohifhjcvsawcdhcpbkw`: 5 sharing columns, 4 policies, all 15 builtins
+still `private`, `anon` callable routines = 0, `authenticated` callable exactly
+`fork_template, generate_publishable_key, has_app_role, is_app_member`.
+
+`harness_test.sql`'s allowlist gained `fork_template` deliberately — and it failed by name
+first, which is how the end-state assertion is supposed to behave.
+
+**Not yet built:** the dashboard UI for authoring a custom template and browsing the
+catalog. That is Task 11 of `rconfig-dashboard/PLAN.md`; the server half above is complete
+and tested without it.

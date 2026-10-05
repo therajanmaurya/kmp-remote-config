@@ -80,6 +80,7 @@ jobs:
           bash supabase/tests/seed_local.sh
           bash supabase/tests/e2e_configs.sh
           bash supabase/tests/e2e_events.sh
+          bash supabase/tests/e2e_rate_limit.sh
 
       - name: Stop stack
         if: always()

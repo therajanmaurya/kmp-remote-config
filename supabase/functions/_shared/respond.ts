@@ -1,3 +1,5 @@
+import type { RateVerdict } from "./rate-limit.ts";
+
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -47,4 +49,50 @@ export function failSoftConfigs(): Response {
 
 export function corsPreflight(): Response {
   return new Response("ok", { headers: CORS });
+}
+
+/**
+ * Informational quota headers.
+ *
+ * Deliberately NOT attached to the cacheable /v1/configs 200: that response carries
+ * `public, max-age=60`, so a shared cache would replay one device's remaining count to
+ * every other device in the audience tuple. A header that is confidently wrong is worse
+ * than an absent one — a client would compute its backoff from someone else's quota.
+ * They ride on the 429 and on the uncached /v1/events 202, where they are accurate.
+ */
+export function rateHeaders(v: RateVerdict): Record<string, string> {
+  return {
+    "X-RateLimit-Limit": String(v.limit),
+    "X-RateLimit-Remaining": String(v.remaining),
+    "X-RateLimit-Reset": v.resetAt,
+  };
+}
+
+/**
+ * 429 — the caller's own quota, distinct from 403 (identity) and from the fail-soft empty
+ * set (internal fault). A limited caller is correctly configured and simply too fast, so
+ * telling it to slow down is actionable; returning an empty config list instead would look
+ * like "nothing to show" and the client would keep hammering.
+ *
+ * `no-store`: a cached 429 would pin a tenant at the edge for the whole cache window even
+ * after their quota reset.
+ */
+export function jsonRateLimited(v: RateVerdict): Response {
+  const retryAfter = Math.max(
+    1,
+    Math.ceil((new Date(v.resetAt).getTime() - Date.now()) / 1000),
+  );
+  return new Response(
+    JSON.stringify({ error: "rate_limited", retry_after: retryAfter }),
+    {
+      status: 429,
+      headers: {
+        ...CORS,
+        "content-type": "application/json",
+        "Cache-Control": "no-store",
+        "Retry-After": String(retryAfter),
+        ...rateHeaders(v),
+      },
+    },
+  );
 }

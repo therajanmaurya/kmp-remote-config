@@ -1,6 +1,13 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { isIdentityError, resolveIdentity } from "../_shared/identity.ts";
-import { corsPreflight, jsonForbidden, jsonOk } from "../_shared/respond.ts";
+import { corsPreflight, jsonForbidden, jsonOk, jsonRateLimited, rateHeaders } from "../_shared/respond.ts";
+import {
+  consumeRateLimit,
+  deviceSubject,
+  EVENTS_PER_MIN_PER_DEVICE,
+  EVENTS_PER_MIN_PER_KEY,
+  eventsSubject,
+} from "../_shared/rate-limit.ts";
 import { checkAttestation } from "../_shared/attestation-gate.ts";
 import { parseEventBatch } from "./parse.ts";
 
@@ -36,6 +43,15 @@ Deno.serve(async (req) => {
   );
   if (gate) return jsonForbidden(gate);
 
+  // O2: 600/min per key. Checked BEFORE parsing so an abusive caller does not get a free
+  // JSON parse of an arbitrarily large body on every request.
+  //
+  // Events get their OWN subject rather than sharing the read bucket: at 600/min a normal
+  // client would consume a 60/min read quota ten times over and black out its own config
+  // fetches — the limiter would have caused the outage it exists to prevent.
+  const keyRate = await consumeRateLimit(db, eventsSubject(id.keyId), EVENTS_PER_MIN_PER_KEY);
+  if (!keyRate.allowed) return jsonRateLimited(keyRate);
+
   let batch: ReturnType<typeof parseEventBatch>;
   try {
     batch = parseEventBatch(await req.json());
@@ -43,6 +59,16 @@ Deno.serve(async (req) => {
     batch = null;
   }
   if (!batch) return jsonForbidden("malformed_batch");
+
+  // O2: 120/min per device. Only reachable after parsing, because device_id is in the
+  // body. This is the limit that catches ONE looping client inside a large app whose
+  // aggregate sits comfortably under the 600/min key limit.
+  const deviceRate = await consumeRateLimit(
+    db,
+    deviceSubject(id.appId, batch.device_id),
+    EVENTS_PER_MIN_PER_DEVICE,
+  );
+  if (!deviceRate.allowed) return jsonRateLimited(deviceRate);
 
   const results: { event_id: string; applied: boolean }[] = [];
   for (const e of batch.events) {
@@ -73,5 +99,13 @@ Deno.serve(async (req) => {
   // Built via jsonOk so the CORS set is defined in ONE place. Hand-rolling the headers here
   // meant OPTIONS passed preflight and then the browser blocked the actual 202 — the silent
   // half of a CORS failure, and §14 requires this to serve a browser consumer.
-  return jsonOk({ accepted: results.filter((r) => r.applied).length, results }, 0, 202);
+  const body = { accepted: results.filter((r) => r.applied).length, results };
+  // The 202 is uncached, so the device's remaining quota is accurate for THIS caller.
+  return new Response(JSON.stringify(body), {
+    status: 202,
+    headers: {
+      ...Object.fromEntries(jsonOk(body, 0, 202).headers),
+      ...rateHeaders(deviceRate),
+    },
+  });
 });

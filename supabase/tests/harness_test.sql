@@ -37,19 +37,26 @@ BEGIN
         WHERE n.nspname='public' AND has_function_privilege('anon', p.oid, 'EXECUTE'));
   END IF;
 
-  -- `authenticated` is limited to the exact allowlist 007 grants. A new routine that
-  -- forgets its REVOKE/GRANT pair shows up here rather than shipping callable.
+  -- `authenticated` is limited to the exact allowlist 007 grants, plus routines a later
+  -- migration adds DELIBERATELY with their own REVOKE/GRANT pair. A new routine that
+  -- forgets that pair shows up here rather than shipping callable — proven twice while
+  -- building 008 and 009, each of which failed this assertion by name before the pair was
+  -- added.
+  --
+  --   fork_template (009) — adopting a community template is a dashboard action, so the
+  --   operator role must call it. It is SECURITY DEFINER and checks has_app_role on the
+  --   DESTINATION app itself, which is stricter than the table policies alone.
   IF EXISTS (
     SELECT 1 FROM pg_proc p
       JOIN pg_namespace n ON n.oid = p.pronamespace
      WHERE n.nspname = 'public'
        AND has_function_privilege('authenticated', p.oid, 'EXECUTE')
-       AND p.proname NOT IN ('is_app_member','has_app_role','generate_publishable_key')
+       AND p.proname NOT IN ('is_app_member','has_app_role','generate_publishable_key','fork_template')
   ) THEN
     RAISE EXCEPTION 'FAIL: authenticated can EXECUTE a routine outside the allowlist: %',
       (SELECT string_agg(p.proname, ', ') FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
         WHERE n.nspname='public' AND has_function_privilege('authenticated', p.oid, 'EXECUTE')
-          AND p.proname NOT IN ('is_app_member','has_app_role','generate_publishable_key'));
+          AND p.proname NOT IN ('is_app_member','has_app_role','generate_publishable_key','fork_template'));
   END IF;
 
   RAISE NOTICE 'PASS: anon closed out of schema public; routine grants match the allowlist';

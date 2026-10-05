@@ -651,17 +651,44 @@ Each carries a default so none blocks implementation.
 | # | Question | Default if unanswered |
 |:-:|---|---|
 | O1 | Locale handling — one payload per config, or per-locale variants? | One payload now; `config.locale` reserved and null. Per-locale is slice 4. |
-| O2 | Rate limits | 60 req/min/key for reads, 600/min for events, 120/min per device |
+| O2 | Rate limits | **IMPLEMENTED 2026-10-05** at these numbers — migration 008 + `_shared/rate-limit.ts`. Reads use `app_key.rate_limit_per_min` (default 60) so one noisy integration is tunable without a deploy; events (600/min/key) and per-device (120/min) are constants, because an operator raising their own write quota is the one direction we do not want self-service. Counting is in Postgres, not the isolate: a per-isolate counter admits 60 × N. Accepted ceiling: a fixed window permits a 2× burst across a boundary. |
 | O3 | Impression retention | 90 days, then aggregate and purge per-device rows |
 | O4 | Does the dashboard show a key again after creation? | Yes — it is a publishable key that ships in the client (§5.3) |
 | O5 | CORS origin allowlist granularity | Per app, stored on `app`; required by §14 |
 
-**Not a default — needs an answer before slice 5 is specced:** the proposed tier model has free users'
-custom UIs automatically published as community templates while paid users choose. Those layouts carry
-the author's copy and branding and sometimes customer-specific wording, so automatic publication is a
-consent and licensing matter, and gating privacy behind payment invites complaints. Recommendation:
-make sharing **opt-in for everyone** and make the paid tier about capacity and control — more apps,
-higher quota, private template library, team seats, longer retention. Flagged, not decided.
+**PARTLY SETTLED 2026-10-05 — migration 009 ships the mechanism; the tier model is still open.**
+
+The original proposal had free users' custom UIs automatically published as community templates while
+paid users choose. Those layouts carry the author's copy and branding and sometimes customer-specific
+wording, so automatic publication is a consent and licensing matter, and gating privacy behind payment
+invites complaints.
+
+What migration 009 implements, and why this is not a decision taken over anyone's head:
+
+- **Sharing is structurally opt-in.** A template is born `private` — the INSERT policy permits no other
+  value and the `template_guard` trigger refuses one — so becoming `community` is always a separate,
+  deliberate UPDATE. `custom_template_test.sql` proves it by attempting the forbidden insert; removing
+  the enforcement from *both* layers makes that test fail.
+- **Consent is recorded server-side and is unforgeable.** `shared_at` / `shared_by` are stamped by the
+  trigger from `now()` and `auth.uid()`, not taken from the client. The test supplies a different user
+  and a date in the past and asserts both are overwritten — without that, a publication could be
+  attributed to someone who never agreed to it. Withdrawing clears the record; re-sharing cannot rewrite
+  an earlier one.
+- **Adoption copies, never references.** `fork_template` writes a private copy into the caller's app with
+  `forked_from` provenance. A direct cross-app reference is now impossible, because
+  `config_template_coherence` gained the tenancy check it never had — a pre-existing hole that was
+  harmless only while every template was global.
+
+**Still open — and the reason it is open is a missing data model, not a missing opinion.** The
+"free auto-publishes / paid chooses" variant cannot be built on this schema at all: there is no plan,
+subscription, or entitlement table to read a tier from, and inventing one is the larger architectural
+addition this section defers. Opt-in-for-everyone is therefore both the recommendation and the only
+variant the database can currently express. The recommendation stands — make the paid tier about
+capacity and control (more apps, higher quota, private template library, team seats, longer retention)
+rather than about privacy. If the tier-gated variant is chosen later the change is additive and small:
+the INSERT policy's `visibility = 'private'` clause becomes tier-dependent. Nothing shipped here has to
+be undone, which is the point of defaulting to the reversible direction — the irreversible direction is
+publishing someone's work without asking.
 
 ---
 

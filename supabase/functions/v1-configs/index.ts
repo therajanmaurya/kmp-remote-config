@@ -1,7 +1,8 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { isIdentityError, resolveIdentity } from "../_shared/identity.ts";
 import { checkAttestation } from "../_shared/attestation-gate.ts";
-import { corsPreflight, failSoftConfigs, jsonForbidden, jsonOk } from "../_shared/respond.ts";
+import { corsPreflight, failSoftConfigs, jsonForbidden, jsonOk, jsonRateLimited } from "../_shared/respond.ts";
+import { consumeRateLimit, readSubject } from "../_shared/rate-limit.ts";
 import { type ConfigRow, matchesAudience, sdkCanRender, type TemplateRow, toWireConfig } from "./audience.ts";
 
 type Row = ConfigRow & { template: TemplateRow };
@@ -34,6 +35,20 @@ Deno.serve(async (req) => {
       Deno.env.get("RC_ASSERTION_SECRET"),
     );
     if (gate) return jsonForbidden(gate);
+
+    // O2: 60 req/min/key for reads, read from app_key.rate_limit_per_min so one noisy
+    // integration can be tuned without a deploy.
+    //
+    // Placed AFTER identity because the subject is the resolved key id — there is no
+    // per-key bucket for a request whose key is invalid. Those already cost only the key
+    // lookup and 403 before reaching here. A caller hammering with a GARBAGE key is
+    // therefore not limited by this; that needs an IP-keyed limit, which O2 does not
+    // specify and this does not pretend to provide.
+    //
+    // A cache HIT never reaches this code, which is the intent: the limiter only charges
+    // requests that were going to query the database anyway.
+    const rate = await consumeRateLimit(db, readSubject(id.keyId), id.rateLimitPerMin);
+    if (!rate.allowed) return jsonRateLimited(rate);
 
     const h = req.headers;
     const ctx = {
