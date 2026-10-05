@@ -13,7 +13,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased] — `4.0.0-alpha01`
+## [Unreleased] — `4.0.0-alpha02`
+
+### Changed — publishing is gated; cron releases removed
+
+`publish-trigger.yml` fired on every push to `dev` matching `cmp-*/**`, and `publish.yml` carried two
+cron schedules. It now dispatches only from a push to the **`release`** branch or a manual
+`workflow_dispatch`, and the crons are gone. Also fixed in the same pass:
+
+- `artifact-id` was `cmp-bubble` — a module this repo does not contain — so the "fail if Maven is
+  ahead" guard compared our version against an unrelated artifact and could never catch a real
+  collision. Now `cmp-remote-config`.
+- `publish-gradle-plugin-portal: true` → `false`. No module here declares a `gradlePlugin` block
+  (`cmp-firebase-gradle-plugin` stayed in KmpToolkit), so the job reported success having published
+  nothing — a false green on the release summary.
+- `bump-after-release: true` → `false`. `next-bump-type: 'patch'` turned `4.0.0-alpha01` into
+  `4.0.1`, dropping the prerelease suffix and silently promoting the alpha line to a release line.
+  Suffixes are now chosen by hand.
+- The version path filter now includes `gradle.properties`. It previously did not, so a release
+  commit that ONLY bumped the version would not have triggered — the inverse bug.
+
+`SONATYPE_AUTOMATIC_RELEASE` stays `true`: a release is hands-off once it reaches `release`, so the
+trigger is the only gate.
+
+---
+
+## [4.0.0-alpha01] — 2026-10-05 — released unintentionally
+
+Published to Maven Central by accident. The genesis commit's push to `dev` matched
+`publish-trigger.yml`'s then-current `cmp-*/**` path filter, which dispatched `publish.yml`;
+org-level publishing secrets resolved via `secrets: inherit`, and `SONATYPE_AUTOMATIC_RELEASE=true`
+closed and released the staging repository with no human gate. Maven Central does not permit
+deletion, so the release is permanent.
+
+**What it contains:** the functional KmpToolkit `3.5.28` code at a 4.x version number. The reworked
+API the 4.x line is reserved for — publishable keys, attestation, `screen` scoping, the template
+registry — is **not** in it. `remoteConfig { }` still requires `supabaseUrl` + `supabaseKey`, and
+`RemoteConfigHost` still takes no `screen` parameter.
+
+**If you depended on it:** prefer `3.5.x` from KmpToolkit for now, or pin `4.0.0-alpha01` knowingly.
+It is not broken — it is mislabelled.
+
+Tag `v4.0.0-alpha01` and its GitHub release were created by the same run.
 
 ### Added — repo split from KmpToolkit
 
@@ -61,7 +102,12 @@ to a consumer-supplied Supabase project with an anon key.
 
 `4.0.0` is reserved as a major because that entry point becomes a single `publishableKey`.
 
-### Precondition before the first publish
+### Coordinate ownership — still open
 
-KmpToolkit must **stop publishing** `cmp-remote-config` and `cmp-remote-config-compose`, or two
-repos race the same Maven coordinate.
+This was written as a precondition to be met *before* the first publish from here. The accidental
+`4.0.0-alpha01` release overtook it, so it is now an open item rather than a gate:
+
+KmpToolkit should **drop** `cmp-remote-config` and `cmp-remote-config-compose`. Until it does, both
+repos can publish the same coordinates. Nothing errors — KmpToolkit releases `3.5.x`, this repo owns
+`4.x`, and Central accepts both — but the version history for those artifacts interleaves across two
+sources, and the two could collide the moment KmpToolkit's line reaches `4.0.0`.

@@ -15,12 +15,16 @@ banner or full-screen takeover renders from the server in your app's own Materia
 RemoteConfigHost(screen = "home")
 ```
 
-> ⚠️ **Status: pre-release (`4.0.0-alpha01`).** This repo was split out of
+> ⚠️ **Status: pre-release.** This repo was split out of
 > [KmpToolkit](https://github.com/MobileByteLabs/KmpToolkit) and the control plane is still being
-> built. The SDK code here is the KmpToolkit `3.5.28` lineage; the publishable-key, screen-filter
-> and template work described below is **not implemented yet**. Nothing is published from this repo
-> until KmpToolkit stops publishing these two artifacts — see
-> [Relationship to KmpToolkit](#relationship-to-kmptoolkit).
+> built. The code here is the KmpToolkit `3.5.28` lineage: the publishable-key, screen-filter and
+> template work described below is **not implemented yet** — `RemoteConfigHost` takes no `screen`
+> parameter and configuration still wants a Supabase URL + anon key.
+>
+> **`4.0.0-alpha01` is on Maven Central but was published by accident** (2026-10-05): this repo's
+> genesis push matched the inherited publish trigger and released it unattended. It is the 3.5.28
+> code under a 4.x version number. Do not read the version as a signal that the rework landed.
+> See [Relationship to KmpToolkit](#relationship-to-kmptoolkit).
 
 ## What this is
 
@@ -82,12 +86,19 @@ These two modules lived in [KmpToolkit](https://github.com/MobileByteLabs/KmpToo
 in a general-purpose library collection.
 
 The **artifact coordinates are deliberately unchanged** — a consumer migrates a *version*, not a
-dependency id. Two things follow from that:
+dependency id. Three things follow from that:
 
-1. **KmpToolkit must stop publishing `cmp-remote-config` and `cmp-remote-config-compose` before the
-   first release from this repo**, or two repos race the same coordinate.
-2. `4.0.0` is a major bump because the SDK's entry point changes:
+1. `4.0.0` is a major bump because the SDK's entry point changes:
    `remoteConfig { supabaseUrl; supabaseKey }` becomes a single `publishableKey`.
+2. **Both repos can now publish the same coordinates**, which is the hazard this split needed to
+   manage and did not. KmpToolkit should drop these two modules; until it does, it can still release
+   `3.5.x` on them while this repo owns `4.x`. Central accepts both, so nothing errors — the versions
+   just interleave across two sources.
+3. `4.0.0-alpha01` was released from here unintentionally (see Status above). Central does not allow
+   deletion, so the 4.x line starts at `-alpha02`.
+
+Publishing is now gated: `publish.yml` has no cron schedules and fires only on a manual dispatch or
+a push to the **`release`** branch. A push to `dev` cannot publish, whatever it touches.
 
 `cmp-observe` is **not** vendored here — it stays published from KmpToolkit and is consumed as
 `io.github.mobilebytelabs:cmp-observe`. A second copy of a published module would drift.

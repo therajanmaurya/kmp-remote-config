@@ -1,25 +1,28 @@
 # Publish Workflow — delegates to mbl-actionhub reusable publish workflow
 #
 # Triggers:
-#   - Schedule: every Monday 00:00 UTC
-#   - Schedule: 1st of every month 00:00 UTC
-#   - Manual dispatch: workflow_dispatch (optional specific module, optional version override)
+#   - workflow_dispatch (manual, optional module / version override)
+#   - dispatched by publish-trigger.yml on a push to the `release` branch
 #
-# Version source of truth: gradle.properties → kmpremoteconfig.version
-#   The committed value of `kmpremoteconfig.version` is what gets published. Bumping
-#   the version is a code review concern, not a registry-derivation concern.
-#   Maven Central is consulted only as a sanity check (fail if Maven is ahead).
+# ── NO cron schedules (removed 2026-10-05) ────────────────────────────────────
+# This workflow used to carry `schedule:` entries for every Monday 00:00 UTC and
+# the 1st of each month. On a repo whose org already provides publishing secrets
+# via `secrets: inherit`, a cron is an unattended release of whatever happens to
+# be committed. Releases here are deliberate: a human merges to `release`, or
+# dispatches this workflow.
+#
+# Version source of truth: gradle.properties -> kmpremoteconfig.version
+#   The committed value is what gets published. `verify-against-maven` fails the
+#   run if Maven Central is already at or ahead of that version, which is the
+#   guard against re-publishing a burned coordinate.
 
 name: Publish
 
 on:
-  schedule:
-    - cron: '0 0 * * 1'   # weekly — every Monday 00:00 UTC
-    - cron: '0 0 1 * *'   # monthly — 1st of every month 00:00 UTC
   workflow_dispatch:
     inputs:
       module:
-        description: 'Specific module to publish (leave empty for all cmp-* modules)'
+        description: 'Specific module to publish (leave empty for both cmp-remote-config modules)'
         required: false
         type: string
       version:
@@ -28,8 +31,8 @@ on:
         type: string
 
 permissions:
-  contents: write          # release creation, tag push, branch push for bump PR
-  pull-requests: write     # bump-after-release opens a PR
+  contents: write          # release creation, tag push
+  pull-requests: write     # retained for the reusable workflow's interface
 
 jobs:
   publish:
@@ -38,31 +41,26 @@ jobs:
       module-pattern: 'cmp-'
       module: ${{ inputs.module || '' }}
       group-id: 'io.github.mobilebytelabs'
-      # artifact-id is used only for the Maven Central sanity check — pick any
-      # cmp-* module that's actively published. cmp-bubble was at 3.2.2 before
-      # the toolkit-wide 3.2.3 release; both tracks now align at 3.2.3+.
-      artifact-id: 'cmp-bubble'
+      # Must name a module THIS repo actually publishes. It was 'cmp-bubble',
+      # inherited from KmpToolkit — a module that does not exist here, so the
+      # "fail if Maven is ahead" sanity check was comparing our version against
+      # an unrelated artifact's and could never catch a real collision.
+      artifact-id: 'cmp-remote-config'
       version: ${{ inputs.version || '' }}
       gradle-properties-key: 'kmpremoteconfig.version'
       verify-against-maven: true
-      # ── Auto-bump for next cycle ──────────────────────────────────────────
-      # After a successful publish + GH release, mbl-actionhub delegates to
-      # mbl-actionhub-bump-version to open a PR bumping kmpremoteconfig.version
-      # to the next patch (3.2.3 → 3.2.4). Auto-merge is best-effort.
-      # If you want a minor/major release for the next cycle, override via
-      # workflow_dispatch input, or close the auto-PR and bump manually.
-      bump-after-release: true
-      next-bump-type: 'patch'
+      # ── Auto-bump DISABLED ────────────────────────────────────────────────
+      # next-bump-type: 'patch' turned 4.0.0-alpha01 into 4.0.1 — it drops the
+      # prerelease suffix, which silently promotes the alpha line to a release
+      # line. This repo stays on 4.0.0-alphaNN until the control plane ships, and
+      # picking the next suffix is a human decision. Bump by hand on `dev`.
+      bump-after-release: false
       java-version: '21'
       java-distribution: 'zulu'
       sonatype-host: 'CENTRAL_PORTAL'
       create-github-release: true
-      # ── Gradle Plugin Portal mirror ───────────────────────────────────────
-      # Maven Central stays the SoT; the shared workflow's publish-plugin-portal
-      # job runs only after `publish` succeeds. It auto-discovers any cmp-* module
-      # whose build.gradle.kts declares `gradlePlugin` — currently
-      # :cmp-firebase-gradle-plugin — so no module list to keep in sync.
-      # Needs org-level GRADLE_PUBLISH_KEY / GRADLE_PUBLISH_SECRET (via secrets: inherit),
-      # the same ones kmp-product-flavors releases with.
-      publish-gradle-plugin-portal: true
+      # No module here declares a `gradlePlugin` block — cmp-firebase-gradle-plugin
+      # stayed in KmpToolkit. The job reported success having published nothing,
+      # which is a false green on the release summary.
+      publish-gradle-plugin-portal: false
     secrets: inherit

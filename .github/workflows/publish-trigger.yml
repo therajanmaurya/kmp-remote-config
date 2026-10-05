@@ -1,17 +1,35 @@
-name: Publish trigger (consumer-library-ai-bridge epic AC #24)
+name: Publish trigger
 
-# Auto-trigger publish.yml when the dev branch receives a cmp-*/  change.
-# Delegates to mbl-actionhub's publish-on-development-push.yml@v1.8.0+ reusable workflow
-# for the debounce + dispatch logic.
+# Auto-dispatch publish.yml when the RELEASE branch receives a publishable change.
 #
-# Authored 2026-05-30 (Phase 05 T7 of consumer-library-ai-bridge epic).
+# ── Why `release` and not `dev` (2026-10-05) ──────────────────────────────────
+# This workflow previously fired on every push to `dev` whose paths matched
+# `cmp-*/**`. On this repo's very first commit that behaviour published
+# cmp-remote-config + cmp-remote-config-compose 4.0.0-alpha01 to Maven Central
+# unattended — the genesis push WAS a `cmp-*/**` change, org-level publishing
+# secrets resolved through `secrets: inherit`, and gradle.properties carried
+# SONATYPE_AUTOMATIC_RELEASE=true. Maven Central does not permit deletion, so
+# that release is permanent.
+#
+# The trigger condition is now a deliberate act: land the release on `release`.
+# Day-to-day work on `dev` cannot publish, no matter which files it touches.
+#
+# Release flow:
+#   1. bump kmpremoteconfig.version on `dev` (prerelease suffix chosen by hand —
+#      see publish.yml, bump-after-release is off)
+#   2. merge `dev` -> `release`
+#   3. this workflow dispatches publish.yml against `release`
+#
+# `gradle.properties` is in the path filter because it is the version source of
+# truth. The old filter omitted it, so a release that ONLY bumped the version
+# would not have triggered — the inverse bug, and equally silent.
 
 on:
   push:
-    branches: [dev]
+    branches: [release]
     paths:
       - 'cmp-*/**'
-      - 'libs.versions.toml'
+      - 'gradle.properties'
       - 'gradle/libs.versions.toml'
   workflow_dispatch:
 
@@ -21,4 +39,4 @@ jobs:
     with:
       publish_workflow_name: 'publish.yml'
       debounce_minutes: 30
-      target_ref: 'dev'
+      target_ref: 'release'
