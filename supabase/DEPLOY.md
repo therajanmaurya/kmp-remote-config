@@ -149,3 +149,43 @@ Ports are offset to 56xxx because 54xxx and 55xxx are taken by other projects' l
 (the +1000-per-project convention in `docs/guides/server/LOCAL_SUPABASE_GUIDE.md`).
 `supabase/tests/psql.sh` resolves the connection from `supabase status`, so nothing here
 hardcodes a DSN.
+
+
+---
+
+## Deployed to `gohifhjcvsawcdhcpbkw` — 2026-10-05
+
+All 7 migrations applied; 3 functions live. Verified against the live project, not inferred:
+
+| Check | Result |
+|---|---|
+| Tables | `app, app_key, app_member, config, impression, template` |
+| Seeded templates | `builtins = 15`, `flag_renders_nothing = t`, `policy_needs_ack = t` |
+| Schema hardening | `anon_usage = f`, `public_has_usage = f` |
+| Routine sweep (007) | `anon_callable = 0`, `authenticated_callable = 3` (the allowlist) |
+| Extensions | `pg_jsonschema 0.3.3`, `pgcrypto 1.3` |
+| Live e2e | `200` with the contract shape; `403 package_mismatch`, `403 platform_mismatch`, `403 key_invalid`, `403 key_missing` |
+| Caching | `cache-control: public, max-age=60` + the full `Vary` tuple |
+
+### `verify_jwt = false` is deliberate
+
+The three routes landed with `verify_jwt: true` on first deploy and returned
+`401 UNAUTHORIZED_NO_AUTH_HEADER` — the platform rejected every request before any of this
+repo's identity code ran. These routes authenticate by **publishable key** (`X-RC-Key`) plus
+package/cert/platform binding, not by a Supabase user JWT; a JWT gate in front of them is the
+wrong boundary and simply makes the product unreachable. The setting is committed in
+`supabase/config.toml` so a redeploy cannot silently restore it.
+
+### `RC_ASSERTION_SECRET`
+
+Set as a function secret via `core/scripts/secrets-sync-to-supabase.sh --apply` (the sanctioned
+path — `supabase-connect-guard.sh` refuses a hand-rolled `secrets set`). Confirmed present on
+the project by name through the Management API.
+
+### Standing caveat: `/v1/attest` has nothing behind it
+
+`ATTEST_VERIFY_ENDPOINT` is unset and no Play Integrity / App Attest verifier exists in this
+repo yet, so **`/v1/attest` refuses every request by design** — an attestation that "succeeded"
+without verification would hand out assertions to anyone while looking secure. Consequence: a
+key set to `attestation_policy: required` rejects all traffic until that verifier ships
+(slice 3). Keys left at the `preferred` default are unaffected. See spec §7.3 as amended.

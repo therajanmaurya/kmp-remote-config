@@ -340,7 +340,18 @@ at integration time, not silent in production.
 
 ### 7.3 Attestation placement
 
-**Required on `/v1/events`. Policy-driven on `/v1/configs`, default `preferred`.**
+**Policy-driven on both routes, default `preferred`. Writes additionally reject `off`.**
+
+> **Amended 2026-10-05 (review finding I8).** This section previously read "Required on
+> `/v1/events`", which contradicted §8.2's "attestation required per key policy". The
+> implementation follows §8.2, and this is now the single statement: on `/v1/events` a key at
+> `required` must present a valid assertion, a key at `preferred` may omit one, and a key at
+> `off` is refused outright because an unattested writer is the one case writes cannot accept.
+> Reading §7.3 literally would have made every `preferred` key — the default — unable to report
+> a single impression until a Play Integrity / App Attest verifier exists, which is slice-3
+> work. That is a product outage dressed as a security control: it would have blocked all
+> telemetry from every correctly-configured integration while stopping no attacker who can
+> simply send reads.
 
 Reads are cacheable by audience tuple with no device identity in them, which is what makes them
 effectively free at the edge. Requiring per-device attestation on reads destroys that cache to protect

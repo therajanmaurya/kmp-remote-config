@@ -406,3 +406,30 @@ s3_secret_key = "env(S3_SECRET_KEY)"
 # declarative_schema_path = "./database"
 # JSON string passed through to pg-delta SQL formatting.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":80,\"commaStyle\":\"trailing\"}"
+
+# ── Edge Function auth ────────────────────────────────────────────────────────
+# verify_jwt = false on all three routes, DELIBERATELY.
+#
+# Supabase's gateway enforces verify_jwt BEFORE the function body runs. These routes are
+# called by an SDK that authenticates with a publishable key in X-RC-Key — not with a
+# Supabase JWT — so with verify_jwt on, every real request is rejected 401
+# UNAUTHORIZED_NO_AUTH_HEADER and resolveIdentity never executes. Measured on the first
+# deploy: a bogus key and a missing key both returned 401 instead of the 403 the identity
+# check produces.
+#
+# This does NOT make the routes unauthenticated. The function IS the authorization boundary
+# (spec §4): resolveIdentity resolves the publishable key to an app, verifies the asserted
+# package and signing certificate, applies the attestation policy, and every downstream
+# query is scoped by the resolved app id. Turning the gateway check off is what lets that
+# boundary run at all.
+#
+# Recorded here rather than passed as --no-verify-jwt at deploy time, so the setting is in
+# version control and a later deploy cannot silently differ.
+[functions.v1-configs]
+verify_jwt = false
+
+[functions.v1-events]
+verify_jwt = false
+
+[functions.v1-attest]
+verify_jwt = false
