@@ -670,7 +670,12 @@ higher quota, private template library, team seats, longer retention. Flagged, n
 1. A new user signs in with Google at `rconfig.mobilebytesensei.com` and lands on an empty app list.
 2. They create two apps; each shows only its own configs and keys.
 3. A second user signs in and sees neither — proven by the §13.1 negative tests, not by inspection.
-4. Issuing a key produces a `pk_live_*` **and** a `pk_test_*` with `attestation_policy: off`.
+4. Issuing a key produces an `rck_live_*` **and** an `rck_test_*` with `attestation_policy: off`.
+   *(Amended 2026-10-05, review finding M1: the prefix shipped as `rck_`, not `pk_`. `pk_live_`
+   is byte-identical to Stripe's publishable-key format, and the framework's secret-output
+   guard flags it as one — it fired on a generated key mid-review. Every e2e run, seed read
+   and dashboard key listing would have raised a false secrets alert, and a guard that cries
+   wolf gets ignored.)*
 5. Authoring an `update_available` config renders a form from its schema, previews the dialog, and
    saves disabled by default.
 6. Enabling it makes it appear in `GET /v1/configs` for a matching audience tuple, and absent for a
