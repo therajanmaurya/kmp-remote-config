@@ -1,0 +1,1 @@
+# Schema migrations. Numbered, forward-only, idempotent (CREATE TABLE IF NOT EXISTS).

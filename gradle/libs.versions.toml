@@ -1,0 +1,200 @@
+[versions]
+# cmp-observe is consumed from Maven Central, NOT vendored as a module here —
+# it is published from MobileByteLabs/KmpToolkit and a second copy would drift.
+cmpObserve = "3.5.31"
+agp = "9.4.0"
+kotlin = "2.4.20"
+compose-multiplatform = "1.12.0"
+material3 = "1.10.0-alpha05"
+# material-icons-extended publishing stopped tracking Compose-MP at 1.7.x;
+# latest available on Maven Central is 1.7.3 (not 1.10.x).
+compose-material-icons-extended = "1.7.3"
+android-minSdk = "24"
+android-compileSdk = "37"
+android-targetSdk = "36"
+vanniktechMavenPublish = "0.37.0"
+kotlinx-binary-compatibility-validator = "0.18.1"
+dokka = "2.0.0"
+gradlePluginPublish = "1.3.0"
+
+# Code Quality
+detekt = "1.23.8"
+spotless = "8.10.2"
+ktlint = "1.8.0"
+
+# Testing
+junit = "4.13.2"
+robolectric = "4.14.1"
+# Emulated API level for Robolectric host tests. Pinned BELOW android-compileSdk on purpose:
+# Robolectric 4.14.1 ships images only to 35 and hard-fails on a higher targetSdk. Consumed by
+# robolectric-host-test.gradle.kts, which generates robolectric.properties from it — raise here
+# and every module follows. See that file for the full rationale.
+robolectricSdk = "35"
+androidxComposeUiTest = "1.12.0"
+turbine = "1.2.0"
+coroutines = "1.11.0"
+supabase = "3.2.6"
+ktor = "3.2.1"
+koin = "4.1.1"
+kermit = "2.0.5"
+kotlinx-serialization = "1.11.0"
+kotlinx-datetime = "0.8.0"
+kotlinx-html = "0.12.0"
+kotlinx-browser = "0.3"
+openhtmltopdf = "1.0.10"
+pdfbox = "2.0.32"
+markdown = "0.7.3"
+androidx-core = "1.13.1"
+navigation = "2.9.2"
+
+# GitLive Firebase Kotlin SDK (3.0.0-alpha02: iOS linking via SwiftPM, needs Kotlin 2.4.0; adds wasmJs at JS parity)
+gitliveFirebase = "3.0.0-alpha02"
+# Firebase Android BOM — GitLive's android sourceset omits versions; the BOM resolves them
+firebaseBom = "34.18.0"
+
+# AndroidX
+androidx-activityCompose = "1.13.0"
+androidx-activityKtx = "1.10.1"  # v0.4 Phase 1 — non-Compose activity for ComponentActivity.intentLauncher() escape hatch
+# 2.11.0: androidx.lifecycle unified its KMP publication, so the real multiplatform
+# artifacts are now under androidx.lifecycle (with -metadata jars). The old
+# org.jetbrains.androidx.lifecycle modules are empty relocation shims at 2.11.0-beta01 —
+# compose 1.12.0 constraints force-upgraded 2.9.6 to that shim, which is why
+# `androidx.lifecycle.viewmodel.compose.viewModel` stopped resolving in commonMain.
+androidx-lifecycle = "2.11.0"
+androidx-test-runner = "1.6.2"
+androidx-test-junit = "1.2.1"
+playAppUpdate = "2.1.0"
+playReview = "2.0.2"
+
+# v0.4 — kover for coverage verification (Phase 9)
+kover = "0.9.9"
+
+[libraries]
+cmp-observe = { module = "io.github.mobilebytelabs:cmp-observe", version.ref = "cmpObserve" }
+kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
+kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
+kotlinx-coroutines-swing = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-swing", version.ref = "coroutines" }
+junit = { module = "junit:junit", version.ref = "junit" }
+app-cash-turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }
+
+# Detekt
+detekt-formatting = { module = "io.gitlab.arturbosch.detekt:detekt-formatting", version.ref = "detekt" }
+
+# Dokka — gradle-plugin artifact consumed by build-logic/convention/ for DokkaConventionPlugin
+dokka-gradle = { module = "org.jetbrains.dokka:dokka-gradle-plugin", version.ref = "dokka" }
+# Consumed compileOnly by :cmp-firebase-gradle-plugin (the consumer build already supplies KGP)
+kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
+# Consumed compileOnly by build-logic for KoverConventionPlugin. NOT `implementation`:
+# kover-gradle-plugin on build-logic's runtime classpath transitively conflicts with
+# AGP's kotlin-gradle-plugin (kover issue #135).
+kover-gradlePlugin = { module = "org.jetbrains.kotlinx:kover-gradle-plugin", version.ref = "kover" }
+# Android host-test runtime — supplies a real android.os.Build (incl. FINGERPRINT), which
+# androidx.compose.ui.test's AndroidComposeUiTestEnvironment requires to select an idling strategy.
+robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
+# Supplies the AndroidManifest entry for the ComponentActivity that Compose's Android UI-test
+# ActivityScenario launches; without it Robolectric reports "Unable to resolve activity for Intent".
+androidx-compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-manifest", version.ref = "androidxComposeUiTest" }
+
+# AndroidX
+androidx-activity = { module = "androidx.activity:activity", version.ref = "androidx-activityKtx" }
+androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activityCompose" }
+androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "androidx-lifecycle" }
+androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "androidx-lifecycle" }
+androidx-lifecycle-process = { module = "androidx.lifecycle:lifecycle-process", version = "2.8.7" }
+
+# Compose
+compose-runtime = { module = "org.jetbrains.compose.runtime:runtime", version.ref = "compose-multiplatform" }
+compose-foundation = { module = "org.jetbrains.compose.foundation:foundation", version.ref = "compose-multiplatform" }
+compose-material3 = { module = "org.jetbrains.compose.material3:material3", version.ref = "material3" }
+compose-materialIconsExtended = { module = "org.jetbrains.compose.material:material-icons-extended", version.ref = "compose-material-icons-extended" }
+compose-ui = { module = "org.jetbrains.compose.ui:ui", version.ref = "compose-multiplatform" }
+compose-ui-tooling = { module = "org.jetbrains.compose.ui:ui-tooling", version.ref = "compose-multiplatform" }
+compose-ui-tooling-preview = { module = "org.jetbrains.compose.ui:ui-tooling-preview", version.ref = "compose-multiplatform" }
+# Multiplatform Compose UI test harness (runComposeUiTest) — first used by cmp-network-monitor-compose.
+compose-ui-test = { module = "org.jetbrains.compose.ui:ui-test", version.ref = "compose-multiplatform" }
+compose-components-resources = { module = "org.jetbrains.compose.components:components-resources", version.ref = "compose-multiplatform" }
+
+# Play Services
+play-app-update = { module = "com.google.android.play:app-update", version.ref = "playAppUpdate" }
+play-app-update-ktx = { module = "com.google.android.play:app-update-ktx", version.ref = "playAppUpdate" }
+play-review = { module = "com.google.android.play:review", version.ref = "playReview" }
+play-review-ktx = { module = "com.google.android.play:review-ktx", version.ref = "playReview" }
+
+# Supabase
+supabase-postgrest = { module = "io.github.jan-tennert.supabase:postgrest-kt", version.ref = "supabase" }
+
+# Ktor
+ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
+ktor-client-cio = { module = "io.ktor:ktor-client-cio", version.ref = "ktor" }
+ktor-client-darwin = { module = "io.ktor:ktor-client-darwin", version.ref = "ktor" }
+ktor-client-js = { module = "io.ktor:ktor-client-js", version.ref = "ktor" }
+ktor-client-curl = { module = "io.ktor:ktor-client-curl", version.ref = "ktor" }
+ktor-client-winhttp = { module = "io.ktor:ktor-client-winhttp", version.ref = "ktor" }
+ktor-client-content-negotiation = { module = "io.ktor:ktor-client-content-negotiation", version.ref = "ktor" }
+ktor-serialization-kotlinx-json = { module = "io.ktor:ktor-serialization-kotlinx-json", version.ref = "ktor" }
+
+# Koin
+koin-core = { module = "io.insert-koin:koin-core", version.ref = "koin" }
+koin-compose-viewmodel = { module = "io.insert-koin:koin-compose-viewmodel", version.ref = "koin" }
+
+# GitLive Firebase Kotlin SDK
+gitlive-firebase-app = { module = "dev.gitlive:firebase-app", version.ref = "gitliveFirebase" }
+gitlive-firebase-analytics = { module = "dev.gitlive:firebase-analytics", version.ref = "gitliveFirebase" }
+gitlive-firebase-common = { module = "dev.gitlive:firebase-common", version.ref = "gitliveFirebase" }
+gitlive-firebase-crashlytics = { module = "dev.gitlive:firebase-crashlytics", version.ref = "gitliveFirebase" }
+gitlive-firebase-performance = { module = "dev.gitlive:firebase-perf", version.ref = "gitliveFirebase" }
+
+# Firebase Android BOM — supplies versions for transitive Google Firebase artifacts
+firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebaseBom" }
+
+# Kermit
+kermit = { module = "co.touchlab:kermit", version.ref = "kermit" }
+
+# KotlinX
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
+kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "kotlinx-datetime" }
+kotlinx-html = { module = "org.jetbrains.kotlinx:kotlinx-html", version.ref = "kotlinx-html" }
+kotlinx-browser = { module = "org.jetbrains.kotlinx:kotlinx-browser", version.ref = "kotlinx-browser" }
+kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
+openhtmltopdf-pdfbox = { module = "com.openhtmltopdf:openhtmltopdf-pdfbox", version.ref = "openhtmltopdf" }
+openhtmltopdf-svg-support = { module = "com.openhtmltopdf:openhtmltopdf-svg-support", version.ref = "openhtmltopdf" }
+pdfbox = { module = "org.apache.pdfbox:pdfbox", version.ref = "pdfbox" }
+markdown = { module = "org.jetbrains:markdown", version.ref = "markdown" }
+androidx-core = { module = "androidx.core:core-ktx", version.ref = "androidx-core" }
+kotlin-test-junit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version.ref = "kotlin" }
+androidx-test-runner = { module = "androidx.test:runner", version.ref = "androidx-test-runner" }
+androidx-test-ext-junit = { module = "androidx.test.ext:junit", version.ref = "androidx-test-junit" }
+
+# Lifecycle (alias for mobilebytesensei modules)
+lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "androidx-lifecycle" }
+
+# Navigation
+navigation-compose = { module = "org.jetbrains.androidx.navigation:navigation-compose", version.ref = "navigation" }
+
+# Settings
+multiplatform-settings = { module = "com.russhwolf:multiplatform-settings", version = "1.3.0" }
+
+# Image Loading
+coil-compose = { module = "io.coil-kt.coil3:coil-compose", version = "3.2.0" }
+coil-network-ktor = { module = "io.coil-kt.coil3:coil-network-ktor3", version = "3.2.0" }
+
+# KmpToolkit (for consumer reference — modules use project() internally)
+cmp-network-monitor = { module = "io.github.mobilebytelabs:cmp-network-monitor", version = "3.2.1" }
+cmp-network-monitor-compose = { module = "io.github.mobilebytelabs:cmp-network-monitor-compose", version = "3.2.1" }
+
+[plugins]
+gradle-plugin-publish = { id = "com.gradle.plugin-publish", version.ref = "gradlePluginPublish" }
+android-kotlin-multiplatform-library = { id = "com.android.kotlin.multiplatform.library", version.ref = "agp" }
+android-application = { id = "com.android.application", version.ref = "agp" }
+kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
+composeMultiplatform = { id = "org.jetbrains.compose", version.ref = "compose-multiplatform" }
+composeCompiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+vanniktech-mavenPublish = { id = "com.vanniktech.maven.publish", version.ref = "vanniktechMavenPublish" }
+detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
+spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
+kotlinSerialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+kotlinxSerialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+binaryCompatibilityValidator = { id = "org.jetbrains.kotlinx.binary-compatibility-validator", version.ref = "kotlinx-binary-compatibility-validator" }
+dokka = { id = "org.jetbrains.dokka", version.ref = "dokka" }
+kover = { id = "org.jetbrains.kotlinx.kover", version.ref = "kover" }

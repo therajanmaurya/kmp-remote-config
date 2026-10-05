@@ -1,0 +1,90 @@
+site_name: kmp-remote-config
+site_description: Server-driven remote config for Kotlin Multiplatform — templated Compose surfaces, screen-scoped targeting, publishable keys with platform attestation
+site_url: https://mobilebytelabs.github.io/kmp-remote-config/
+repo_url: https://github.com/MobileByteLabs/kmp-remote-config
+repo_name: MobileByteLabs/kmp-remote-config
+edit_uri: edit/dev/docs/
+
+theme:
+  name: material
+  logo: assets/logo.svg
+  favicon: assets/logo.svg
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: amber
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: amber
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.tracking
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.action.edit
+
+extra_css:
+  - stylesheets/mbs-brand.css
+
+# Pre-existing per-module long-form docs predate this mkdocs site and use
+# relative links that resolve only in the GitHub UI (not under mkdocs).
+# Keep them on disk for GitHub readers but exclude from the strict build —
+# the canonical docs surface is the mkdocs nav above (Home + Getting started
+# + Modules + Cookbook). When a legacy doc gets migrated, drop its line below.
+exclude_docs: |
+  REMOTE_CONFIG.md
+  REMOTE_CONFIG_SAMPLES.md
+  remote-config/
+  superpowers/
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - toc:
+      permalink: true
+
+plugins:
+  - search
+  - include-markdown:
+      rewrite_relative_urls: true
+  - macros
+
+# Embedded READMEs/DEVELOPMENT.md contain relative links that resolve from
+# the module's GitHub directory (e.g. `../cmp-network-monitor/CHANGELOG.md`)
+# but not from the mkdocs docs/ tree. They remain valid for GitHub readers
+# of the source README; downgrade the strict-mode warning to info so the
+# docs site still builds. Authoritative link targets in nav stay validated.
+validation:
+  links:
+    not_found: info
+    absolute_links: ignore
+    unrecognized_links: info
+
+nav:
+  - Home: index.md
+  - Getting started: getting-started.md
+  - Modules:
+      - cmp-remote-config: modules/cmp-remote-config.md
+  - Cookbook:
+      - Observability: cookbook/observability/index.md
+  - Contributing:
+      - Docs guide (template): DEVELOPMENT-TEMPLATE.md
+      - Docs guide: DEVELOPMENT.md
