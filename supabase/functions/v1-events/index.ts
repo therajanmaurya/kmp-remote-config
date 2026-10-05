@@ -1,6 +1,7 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { isIdentityError, resolveIdentity } from "../_shared/identity.ts";
 import { corsPreflight, jsonForbidden, jsonOk } from "../_shared/respond.ts";
+import { checkAttestation } from "./gate.ts";
 import { parseEventBatch } from "./parse.ts";
 
 Deno.serve(async (req) => {
@@ -22,10 +23,17 @@ Deno.serve(async (req) => {
   // Attestation is REQUIRED on writes for any key not explicitly set to `off`. This is the
   // path where poisoned data has a cost, so it carries the hard boundary; reads stay
   // cacheable and policy-driven.
-  const assertion = req.headers.get("X-RC-Attestation");
-  if (id.attestationPolicy !== "off" && !assertion) {
-    return jsonForbidden("attestation_required");
-  }
+  //
+  // checkAttestation VERIFIES the assertion — signature, expiry, and that it was minted
+  // for THIS app. An earlier version checked only that the header was non-empty, which
+  // meant any string passed and the boundary was decorative.
+  const gate = await checkAttestation(
+    id.attestationPolicy,
+    req.headers.get("X-RC-Attestation"),
+    id.appId,
+    Deno.env.get("RC_ASSERTION_SECRET"),
+  );
+  if (gate) return jsonForbidden(gate);
 
   let batch: ReturnType<typeof parseEventBatch>;
   try {
