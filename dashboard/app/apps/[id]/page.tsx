@@ -33,15 +33,18 @@ export default async function AppOverviewPage({ params }: { params: { id: string
     )
   }
 
-  const [{ count: activeCount }, { count: keyCount }, { data: impressions }] = await Promise.all([
-    supabase.from("config").select("id", { count: "exact", head: true })
-      .eq("app_id", params.id).eq("is_enabled", true),
-    supabase.from("app_key").select("id", { count: "exact", head: true })
-      .eq("app_id", params.id).is("revoked_at", null),
-    supabase.from("impression").select("created_at")
-      .eq("app_id", params.id)
-      .gte("created_at", new Date(Date.now() - 14 * 864e5).toISOString()),
-  ])
+  const [{ count: activeCount }, { count: keyCount }, { count: templateCount }, { data: impressions }] =
+    await Promise.all([
+      supabase.from("config").select("id", { count: "exact", head: true })
+        .eq("app_id", params.id).eq("is_enabled", true),
+      supabase.from("app_key").select("id", { count: "exact", head: true })
+        .eq("app_id", params.id).is("revoked_at", null),
+      supabase.from("template").select("id", { count: "exact", head: true })
+        .eq("app_id", params.id),
+      supabase.from("impression").select("created_at")
+        .eq("app_id", params.id)
+        .gte("created_at", new Date(Date.now() - 14 * 864e5).toISOString()),
+    ])
 
   // Bucket by day in app code rather than SQL: the rows are already scoped and small, and
   // a date_trunc RPC would need its own grant + its own REVOKE/GRANT pair (the 007 lesson).
@@ -68,7 +71,7 @@ export default async function AppOverviewPage({ params }: { params: { id: string
           <p className="text-xs text-neutral-500">live keys</p>
         </Link>
         <Link href={`/apps/${params.id}/templates`} className="rounded border p-4 hover:border-neutral-400">
-          <p className="text-2xl font-semibold">·</p>
+          <p className="text-2xl font-semibold">{templateCount ?? 0}</p>
           <p className="text-xs text-neutral-500">custom templates</p>
         </Link>
       </div>

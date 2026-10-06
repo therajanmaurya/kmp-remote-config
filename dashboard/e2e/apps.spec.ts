@@ -55,3 +55,14 @@ test("an anonymous visitor is redirected to sign in", async ({ browser }) => {
   await expect(page.getByRole("button", { name: /Continue with Google/i })).toBeVisible()
   await ctx.close()
 })
+
+test("the overview counts are real numbers, not placeholders", async ({ page }) => {
+  // A `·` placeholder shipped here in the first draft. The framework's design-conformance
+  // rule objects to exactly that: a card that looks like data and is not.
+  await page.goto(`/apps/${ids.app_a_id}`)
+  for (const label of ["active configs", "live keys", "custom templates"]) {
+    const card = page.locator("a", { has: page.getByText(label, { exact: true }) })
+    await expect(card).toBeVisible()
+    await expect(card.locator("p").first()).toHaveText(/^\d+$/)
+  }
+})
