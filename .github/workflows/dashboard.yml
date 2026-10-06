@@ -53,3 +53,23 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
         run: npm run build
+
+  smoke:
+    name: Production smoke
+    needs: test
+    # Only after a push to the deploy branch — on a PR the deployment under test does not
+    # exist yet, and probing production from a PR would assert someone else's state.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/release'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      # No flags and no local stack: the default playwright mode is the production smoke,
+      # which covers health, the anonymous redirect, the Google redirect chain (the
+      # localhost-site_url regression), the stale-verifier clear, and a bundle scan for
+      # service-role material.
+      - run: npx playwright test

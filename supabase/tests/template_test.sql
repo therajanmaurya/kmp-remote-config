@@ -33,3 +33,33 @@ BEGIN
 
   RAISE NOTICE 'PASS: template registry seeded and coherent';
 END $$;
+
+-- ============================================================
+-- Display-token closure (migration 010)
+-- ============================================================
+-- The SDK's DisplayType knows dialog/fullscreen/banner/bottom_sheet and falls back to
+-- DIALOG for anything else, so a template declaring an unrenderable display would draw the
+-- wrong thing on device with nothing reporting it. Two builtins shipped `inline`.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM public.template WHERE 'inline' = ANY(allowed_displays)) THEN
+    RAISE EXCEPTION 'FAIL: a template still declares inline, which the SDK renders as a DIALOG';
+  END IF;
+
+  -- The constraint, not just the cleanup: a template created through the API must be
+  -- refused too, which is why this is in the database and not in the dashboard.
+  BEGIN
+    UPDATE public.template SET allowed_displays = ARRAY['inline'] WHERE id = 'information';
+    RAISE EXCEPTION 'FAIL: template_displays_renderable permitted an unrenderable display';
+  EXCEPTION
+    WHEN check_violation THEN NULL;
+    WHEN raise_exception THEN IF SQLERRM LIKE 'FAIL:%' THEN RAISE; END IF;
+  END;
+
+  -- `none` must stay legal — it is how a value-only template says it draws nothing.
+  IF NOT EXISTS (SELECT 1 FROM public.template WHERE id = 'feature_flag' AND allowed_displays = ARRAY['none']) THEN
+    RAISE EXCEPTION 'FAIL: feature_flag no longer declares {none}; the closure constraint has broken value-only templates';
+  END IF;
+
+  RAISE NOTICE 'PASS: every declared display is one the SDK can render';
+END $$;

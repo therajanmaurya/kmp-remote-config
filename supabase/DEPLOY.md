@@ -314,3 +314,22 @@ round trip is not available here — the signed-in walkthroughs (app creation, k
 authoring, template sharing, cross-tenant isolation) are covered by the 15 Playwright tests
 against a local stack with real RLS. Production coverage is health + the anonymous redirect
 + the bundle scan.
+
+
+## Display-token closure (migration 010) — deployed 2026-10-06
+
+The SDK's `DisplayType` knows `dialog`, `fullscreen`, `banner`, `bottom_sheet` and
+**falls back to DIALOG for anything else**. Two seeded builtins declared `inline`
+(`information`, `onboarding_tip`), so an `inline` config would have rendered as a full
+modal dialog on device with nothing reporting the mismatch.
+
+Both rows now offer `banner` only, and two CHECK constraints make the class unreachable:
+`template_displays_renderable` and `config_display_renderable` restrict values to the four
+SDK presentations plus `none` (how a value-only template says it draws nothing). The
+constraint lives in the database rather than the dashboard because a template created
+through the API would otherwise bypass the dashboard's own refusal.
+
+Verified on prod: 0 templates declare `inline`, both constraints present, 15 builtins
+intact, and an `UPDATE … allowed_displays = {inline}` is refused by check violation.
+
+When the SDK grows an INLINE presentation, this constraint is the single place to change.
