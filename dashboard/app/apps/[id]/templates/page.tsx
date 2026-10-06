@@ -1,3 +1,8 @@
+// Cloudflare Pages via @cloudflare/next-on-pages runs every dynamic route in the Workers
+// edge runtime, and the build REFUSES any non-static route that has not opted in. This is
+// not a preference — without it the deploy fails listing this file.
+export const runtime = "edge"
+
 import Link from "next/link"
 import { requireUser } from "@/lib/require-user"
 import { ShareControl } from "@/components/ShareTemplateDialog"

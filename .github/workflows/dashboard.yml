@@ -1,0 +1,55 @@
+# Dashboard CI. Jest carries the AC11 service-role gate, which is what makes "no
+# NEXT_PUBLIC_* resolves to the service-role alias" CI-ASSERTED rather than tested once.
+#
+# Playwright is NOT run here: it needs a local Supabase stack (Docker + migrations + seeded
+# users), which is a different and much heavier job than this one. Running it would need
+# the supabase CLI service containers; until that is wired, the e2e suites are a local gate
+# and this file says so rather than implying coverage it does not have.
+name: Dashboard
+
+on:
+  push:
+    branches: [dev, release]
+    paths:
+      - 'dashboard/**'
+      - '.github/workflows/dashboard.yml'
+  pull_request:
+    paths:
+      - 'dashboard/**'
+      - '.github/workflows/dashboard.yml'
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: dashboard
+
+jobs:
+  test:
+    name: Jest + build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # `npm ci` honours dashboard/.npmrc (legacy-peer-deps=true), which is required: the
+      # next@14.2.35 + next-on-pages@1.13.16 + wrangler@4.125 trio is no longer installable
+      # under strict peer resolution — see .npmrc for why.
+      - name: Install
+        run: npm ci
+
+      - name: Unit + gate suites
+        run: npx jest
+
+      # Build with PLACEHOLDER public values. The build must not depend on real
+      # credentials — if it does, that is itself the bug. The service-role key is
+      # deliberately absent here, so a build that needs it fails loudly in CI rather than
+      # at runtime in production.
+      - name: Build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+        run: npm run build

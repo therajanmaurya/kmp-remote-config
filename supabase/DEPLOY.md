@@ -268,3 +268,49 @@ first, which is how the end-state assertion is supposed to behave.
 **Not yet built:** the dashboard UI for authoring a custom template and browsing the
 catalog. That is Task 11 of `rconfig-dashboard/PLAN.md`; the server half above is complete
 and tested without it.
+
+
+## Dashboard — deployed 2026-10-06
+
+**https://rconfig.mobilebytesensei.com** · Cloudflare Pages project `rconfig`
+(`rconfig-8nq.pages.dev`), production branch `release`.
+
+Verified live: `/api/health` → `{"ok":true,"missing_count":0}`; `/` → 307 → `/auth/login`
+with the Google button rendered; no shipped JS chunk contains `"role":"service_role"` or a
+service-role JWT.
+
+### What the deploy needed that the spec did not say
+
+- **Every dynamic route must `export const runtime = "edge"`.** `next-on-pages` refuses the
+  build and lists each offending route. Ten routes needed it.
+- **`.npmrc` with `legacy-peer-deps=true`.** The spec's "known-good" trio
+  (next@14.2.35 + next-on-pages@1.13.16 + modern wrangler) is no longer installable under
+  strict peer resolution: next-on-pages now wants `next >=14.3.0` and
+  `@cloudflare/workers-types@^4`, while current wrangler wants `^5`. PayCraft's tree
+  predates both tightenings. It must live in `.npmrc`, not a flag, because next-on-pages
+  shells out to `vercel build` which runs its OWN `npm install`.
+- **wrangler pinned to 4.125.0.** 4.147 delegates `pages` commands to the Workers-based
+  successor and the delegation fails here; its own error says to pass `--force` to target
+  classic Pages. Pinning is cleaner than forcing on every call.
+- **The custom domain is API-only.** wrangler 4.125 has no `pages domain` command. The
+  domain was attached via `POST /accounts/{id}/pages/projects/rconfig/domains`, and the
+  CNAME (`rconfig` → `rconfig-8nq.pages.dev`, proxied) had to be created explicitly — it
+  was NOT auto-created even though the zone is on the same account.
+- **All three variables are set as Pages secrets, not just the service-role key.**
+  `NEXT_PUBLIC_*` are inlined into the client bundle at build time, but server-side reads
+  in the edge runtime need them present at runtime too.
+
+### A health-check bug this surfaced
+
+The first deploy reported `{"ok":false,"missing_count":3}` on a correctly-configured
+project. The route read `process.env[name]` from a list — a COMPUTED key, which Next's
+build-time substitution cannot see. Only literal `process.env.FOO` is replaced. Fixed to
+literal reads inside the handler.
+
+### Not verified in production
+
+Signed-in flows. The dashboard authenticates only through Google, and a scripted OAuth
+round trip is not available here — the signed-in walkthroughs (app creation, key issuance,
+authoring, template sharing, cross-tenant isolation) are covered by the 15 Playwright tests
+against a local stack with real RLS. Production coverage is health + the anonymous redirect
++ the bundle scan.
