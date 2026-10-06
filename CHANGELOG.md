@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased — epic rconfig-sdk-control-plane-migration
+
+### Phase 01 · T1 — shipped wire model (breaking)
+
+- Added `RemoteConfigEnvelope` / `RemoteConfigItem` in `cmp-remote-config`: the SHIPPED model
+  for `GET /v1/configs` — `schema_version` + `configs[]`, each carrying `template`, an opaque
+  `payload` JsonObject, and `display`.
+- The payload stays an opaque object rather than flattened named fields. Flattening is what
+  limited the previous model to announcement-shaped configs: `update_available` carries
+  store_url / forced / release_notes / current_version and has no title or body, so any fixed
+  field set is wrong for most of the fifteen templates.
+- Server-side targeting (platform, app-version window, screens, schedule) is deliberately
+  absent from the wire item — by the time a config reaches a device it has already matched,
+  and shipping the predicates would invite a second, divergent evaluation on the client.
+- `RemoteConfigEnvelopeTest` asserts the real `contract/configs-response.json` against these
+  production types, including forward-compatibility with an unknown server field.
+
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),

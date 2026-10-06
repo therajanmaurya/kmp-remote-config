@@ -45,6 +45,7 @@ di:       koin — `Module.remoteConfig { }` DSL in the -compose module
 
 | API | Purpose |
 |---|---|
+| `RemoteConfigEnvelope` / `RemoteConfigItem` | **The shipped wire model** for `GET /v1/configs` — `template` + opaque `payload` + `display`. Replaces the flat 3.5.28 shape |
 | `RemoteConfigService` | Fetch active configs, record impressions, dismiss |
 | `RemoteConfigEvaluator` | Decide whether a config applies to this device / app / version |
 | `RemoteConfig` / `DisplayType` | A delivered config and how it presents |
