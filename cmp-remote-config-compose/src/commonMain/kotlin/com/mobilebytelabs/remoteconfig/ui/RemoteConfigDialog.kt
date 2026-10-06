@@ -23,11 +23,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import com.mobilebytelabs.remoteconfig.model.RemoteConfig
 
 @Composable
 internal fun RemoteConfigDialog(
-    config: RemoteConfig,
+    config: ConfigContent,
     onPrimaryAction: () -> Unit,
     onSecondaryAction: () -> Unit,
     onDismiss: () -> Unit,

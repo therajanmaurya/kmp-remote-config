@@ -96,6 +96,12 @@ kotlin {
         // DeviceIdProvider is supplied per platform via `defaultSettings()`. Two flavours only:
         // a platform-backed store where one exists, an in-memory one where the OS has none.
         val bundledSettingsMain = create("bundledSettingsMain").apply { dependsOn(getByName("commonMain")) }
+        // `Settings()` with no arguments lives in multiplatform-settings-NO-ARG, a separate
+        // artifact. It used to arrive transitively through supabase-postgrest; deleting the
+        // Supabase transport in the 5.0.0 migration removed it and this source set stopped
+        // compiling. Declared explicitly now — relying on a transport dependency to supply a
+        // storage factory was never intentional.
+        bundledSettingsMain.dependencies { implementation(libs.multiplatform.settings.no.arg) }
         listOf("androidMain", "jvmMain", "jsMain", "wasmJsMain", "appleMain").forEach {
             getByName(it).dependsOn(bundledSettingsMain)
         }
@@ -112,9 +118,13 @@ kotlin {
             // Reports this library's lifecycle to hooks the consumer registered. Pure stdlib since
             // the Firebase hooks moved to cmp-observe-firebase — 2 classpath lines, no transitive SDK.
             implementation(libs.cmp.observe)
-            // Supabase
-            implementation(libs.supabase.postgrest)
+            // HTTP transport to the rconfig control plane (/v1/configs, /v1/events).
+            // supabase-postgrest was removed in the 5.0.0 migration: the SDK no longer talks
+            // to a consumer's Supabase project directly. The HttpClient is INJECTED, so this
+            // module pulls no platform engine of its own and stays testable with MockEngine.
             implementation(libs.ktor.client.core)
+            implementation(libs.ktor.client.content.negotiation)
+            implementation(libs.ktor.serialization.kotlinx.json)
 
             // Serialization
             implementation(libs.kotlinx.serialization.json)
@@ -134,6 +144,8 @@ kotlin {
 
         commonTest.dependencies {
             implementation(libs.kotlin.test)
+            implementation(libs.ktor.client.mock)
+            implementation(libs.kotlinx.coroutines.test)
         }
     }
 }

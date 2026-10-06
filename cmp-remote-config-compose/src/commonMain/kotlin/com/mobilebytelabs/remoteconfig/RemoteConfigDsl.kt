@@ -1,5 +1,7 @@
 package com.mobilebytelabs.remoteconfig
 
+import io.ktor.client.HttpClient
+
 import com.mobilebytelabs.remoteconfig.di.RemoteConfigSettings
 import com.mobilebytelabs.remoteconfig.dispatch.ActionDispatcher
 import com.mobilebytelabs.remoteconfig.dispatch.ActionHandler
@@ -37,27 +39,58 @@ fun Module.remoteConfig(block: RemoteConfigBuilder.() -> Unit) {
     val settings = builder.build()
 
     single { settings }
-    single { RemoteConfigService(settings.supabaseUrl, settings.supabaseKey) }
+    single {
+        RemoteConfigService(
+            baseUrl = settings.baseUrl,
+            publishableKey = settings.publishableKey,
+            packageName = settings.packageName,
+            platform = settings.platform,
+            appVersion = settings.appVersion,
+            httpClient = settings.httpClient,
+            certDigest = settings.certDigest,
+        )
+    }
     singleOf(::RemoteConfigLocalStore)
     singleOf(::DeviceIdProvider)
-    single { RemoteConfigEvaluator(get(), settings.appVersionProvider) }
+    // The evaluator no longer takes an app-version supplier: the server owns the version
+    // window, the schedule and the platform filter in 5.0.0.
+    single { RemoteConfigEvaluator(get()) }
     viewModelOf(::RemoteConfigViewModel)
 
     ActionDispatcher.register(builder.handlers)
 }
 
 class RemoteConfigBuilder internal constructor() {
-    var supabaseUrl: String = ""
-    var supabaseKey: String = ""
+    /**
+     * The publishable key issued in the rconfig dashboard (`rck_live_…` / `rck_test_…`).
+     *
+     * Safe to ship inside the app: it is bound to [packageName] and, on Android, to the
+     * signing certificate. What protects it is that binding, not secrecy.
+     */
+    var publishableKey: String = ""
+
+    /** The host app's package / bundle id. The server 403s `package_mismatch` on a mismatch. */
+    var packageName: String = ""
+
+    /** android · ios · desktop · web · wasm. A key pinned to a platform refuses the others. */
+    var platform: String = ""
+
+    /** The host app's version name, e.g. "4.3.0". Used server-side for the version window. */
+    var appVersion: String = ""
+
+    /** Android only — the signing certificate digest, when the key registers any. */
+    var certDigest: String? = null
+
+    /** Override only for a self-hosted control plane. */
+    var baseUrl: String = DEFAULT_BASE_URL
 
     /**
-     * Optional lazy supplier of the host app's version name (e.g. `{ appVersionName() }`). When set,
-     * a server config with a `min_app_version` / `max_app_version` window is shown ONLY to builds
-     * inside that window — the basis of a server-driven force-update gate. Lazy on purpose: it is
-     * called at evaluate time, so a platform version source that initializes after Koin (an Android
-     * app-context holder, an iOS bundle) is ready by then. Leave unset for no version gating.
+     * The HTTP client. Supplied by the consumer so this library pulls no platform engine of
+     * its own across fifteen targets, and so an app that already has a tuned client (timeouts,
+     * proxy, certificate pinning) keeps using it.
      */
-    var appVersion: (() -> String?)? = null
+    var httpClient: HttpClient? = null
+
 
     internal val handlers: MutableMap<ActionType, ActionHandler> = mutableMapOf()
 
@@ -72,8 +105,27 @@ class RemoteConfigBuilder internal constructor() {
     }
 
     internal fun build(): RemoteConfigSettings {
-        require(supabaseUrl.isNotBlank()) { "remoteConfig { supabaseUrl } is required" }
-        require(supabaseKey.isNotBlank()) { "remoteConfig { supabaseKey } is required" }
-        return RemoteConfigSettings(supabaseUrl, supabaseKey, appVersion)
+        require(publishableKey.isNotBlank()) { "remoteConfig { publishableKey } is required" }
+        require(packageName.isNotBlank()) { "remoteConfig { packageName } is required" }
+        require(platform.isNotBlank()) { "remoteConfig { platform } is required" }
+        require(appVersion.isNotBlank()) { "remoteConfig { appVersion } is required" }
+        val client = requireNotNull(httpClient) { "remoteConfig { httpClient } is required" }
+        return RemoteConfigSettings(
+            publishableKey = publishableKey,
+            packageName = packageName,
+            platform = platform,
+            appVersion = appVersion,
+            httpClient = client,
+            certDigest = certDigest,
+            baseUrl = baseUrl,
+        )
     }
 }
+
+/**
+ * The hosted control plane. A consumer overrides `baseUrl` only when self-hosting.
+ *
+ * Not a secret: the project ref is public in every client that talks to it, and authority
+ * comes from the publishable key + package + cert digest the server verifies per request.
+ */
+internal const val DEFAULT_BASE_URL = "https://gohifhjcvsawcdhcpbkw.supabase.co/functions/v1"

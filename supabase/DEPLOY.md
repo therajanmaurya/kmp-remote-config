@@ -333,3 +333,21 @@ Verified on prod: 0 templates declare `inline`, both constraints present, 15 bui
 intact, and an `UPDATE … allowed_displays = {inline}` is refused by check violation.
 
 When the SDK grows an INLINE presentation, this constraint is the single place to change.
+
+### Client half closed — 2026-10-07 (Phase 01 / T3)
+
+The constraint above made an unrenderable display unreachable from the SERVER. The client
+half is now shut too: `DisplayType.from()` returns **null** for any value it does not
+recognize instead of falling back to `DIALOG`, and `RemoteConfigHost` renders nothing when
+it does. Two cases this closes that the constraint alone cannot:
+
+- `display: "none"` is permitted by the constraint (it is how a value-only template says it
+  draws nothing). Under the old fallback it mapped to `DIALOG`, so a feature flag could have
+  put a modal on screen.
+- A presentation added to the control plane LATER reaches an older SDK as an unknown string.
+  The database constraint cannot help there — the row is valid, the client is just old. An
+  old client now renders nothing rather than drawing a template in a shape it was never
+  designed for.
+
+So the two halves cover different failure modes and both are needed: the constraint stops
+bad rows being written, the client stops good-but-newer rows being mis-drawn.

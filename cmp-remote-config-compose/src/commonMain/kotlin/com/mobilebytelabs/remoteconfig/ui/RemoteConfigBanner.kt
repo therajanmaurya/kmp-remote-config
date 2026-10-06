@@ -21,10 +21,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.mobilebytelabs.remoteconfig.model.RemoteConfig
 
 @Composable
-internal fun RemoteConfigBanner(config: RemoteConfig, onPrimaryAction: () -> Unit, onDismiss: () -> Unit) {
+internal fun RemoteConfigBanner(config: ConfigContent, onPrimaryAction: () -> Unit, onDismiss: () -> Unit) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()

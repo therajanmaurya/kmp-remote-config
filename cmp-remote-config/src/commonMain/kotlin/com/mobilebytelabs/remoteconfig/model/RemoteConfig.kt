@@ -41,7 +41,15 @@ enum class DisplayType(val value: String) {
     ;
 
     companion object {
-        fun from(value: String): DisplayType = entries.find { it.value == value } ?: DIALOG
+        /**
+         * The presentation for a server-supplied `display`, or null when there is none.
+         *
+         * Returns null rather than defaulting to [DIALOG]. `"none"` is a value-only config
+         * (a feature flag read through the typed getters) and must never put a modal on
+         * screen, and a display added to the control plane later reaches an older SDK as an
+         * unknown string — rendering nothing is the only safe answer such a client can give.
+         */
+        fun from(value: String): DisplayType? = entries.find { it.value == value }
     }
 }
 

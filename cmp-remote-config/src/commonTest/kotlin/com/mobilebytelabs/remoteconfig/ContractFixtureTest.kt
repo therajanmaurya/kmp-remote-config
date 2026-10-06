@@ -1,13 +1,12 @@
 package com.mobilebytelabs.remoteconfig
 
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
+import com.mobilebytelabs.remoteconfig.model.RemoteConfigEnvelope
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
-import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -16,81 +15,76 @@ import kotlin.test.assertTrue
  * `contract/configs-response.json`.
  *
  * This pair is the entire reason the SDK, the backend and the dashboard share one repo:
- * a commit that changes the `/v1/configs` response shape without changing this model fails
- * CI. Without it, the one-repo topology buys nothing.
+ * a commit that changes the `/v1/configs` response shape without changing the SDK model
+ * fails CI. It now deserializes into the SHIPPED [RemoteConfigEnvelope] — previously it
+ * used private `WireEnvelope`/`WireConfig` classes that lived only in this file, so a
+ * commit could change the wire shape and those two classes together and pass both suites
+ * while the real SDK read something else entirely. That is precisely the drift that let the
+ * dashboard and the device disagree for the whole life of the project.
  *
- * TODO(slice-3): these private WireEnvelope/WireConfig data classes are NOT the shipped SDK
- * model. Spec §13.4 asks the Kotlin half to deserialize into "the SDK's model", which cannot
- * happen yet — the shipped `RemoteConfig` is still the old 3.5.28 schema and the rework is
- * slice 3. Until this points at production types, a commit changing the wire shape AND these
- * two classes together passes both suites, so the one-repo guarantee is partial here. Do not
- * mistake a green run for full coverage of that guarantee.
+ * **Every wire field is asserted by VALUE, deliberately.** [RemoteConfigEnvelope] gives each
+ * field a default so an older client tolerates a newer server, which means a RENAMED key
+ * deserializes silently into its default instead of throwing. Asserting the values is what
+ * makes a rename fail — a contract test that cannot fail is not a contract test.
  *
  * The fixture is inlined rather than read from disk because `commonTest` has no filesystem
- * on every target (js, wasmJs, native). A drifted copy FAILS this test, which is the point —
- * the Deno twin asserts the same bytes against the serializer that produces them.
+ * on every target (js, wasmJs, native). `ContractFixtureFileTest` (jvmTest) proves this copy
+ * has not drifted from the file the Deno twin asserts.
  */
-@Serializable
-private data class WireEnvelope(
-    @SerialName("schema_version") val schemaVersion: Int,
-    val configs: List<WireConfig>,
-)
-
-@Serializable
-private data class WireConfig(
-    val id: String,
-    val template: String,
-    @SerialName("template_version") val templateVersion: Int,
-    val display: String,
-    val payload: JsonElement,
-    val priority: Int,
-    @SerialName("renders_ui") val rendersUi: Boolean,
-    @SerialName("requires_ack") val requiresAck: Boolean,
-    val version: Int,
-    // Absent for a non-rendering config — frequency is meaningless without a surface,
-    // so these are nullable rather than defaulted, and the test asserts they arrive null.
-    @SerialName("is_dismissible") val isDismissible: Boolean? = null,
-    @SerialName("max_impressions") val maxImpressions: Int? = null,
-    @SerialName("cooldown_hours") val cooldownHours: Int? = null,
-)
-
 class ContractFixtureTest {
 
-    // Shared with ContractFixtureFileTest (jvmTest), which proves this copy has not drifted
-    // from contract/configs-response.json. Without that check this string could go stale
-    // while still passing.
     private val fixture = InlinedContractFixture.JSON
 
-    private val json = Json { ignoreUnknownKeys = true; isLenient = true }
+    private val json = Json { ignoreUnknownKeys = true; isLenient = true; coerceInputValues = true }
+
+    private fun envelope(): RemoteConfigEnvelope = json.decodeFromString(fixture)
 
     @Test
-    fun deserializes_the_control_plane_response() {
-        val env = json.decodeFromString<WireEnvelope>(fixture)
+    fun deserializes_the_control_plane_response_into_the_shipped_model() {
+        val env = envelope()
         assertEquals(1, env.schemaVersion)
         assertEquals(2, env.configs.size)
     }
 
     @Test
-    fun rendering_config_carries_frequency_fields() {
-        val c = json.decodeFromString<WireEnvelope>(fixture).configs[0]
+    fun rendering_config_carries_every_field_the_host_reads() {
+        val c = envelope().configs[0]
+        assertEquals("0f9b7c1e-2a3d-4b5c-8d7e-1f2a3b4c5d6e", c.id)
         assertEquals("update_available", c.template)
+        assertEquals(1, c.templateVersion)
         assertEquals("dialog", c.display)
+        assertEquals(10, c.priority)
         assertTrue(c.rendersUi)
+        assertFalse(c.requiresAck)
+        assertEquals(1, c.version)
+        assertTrue(c.isDismissible)
         assertEquals(1, c.maxImpressions)
         assertEquals(24, c.cooldownHours)
-        assertEquals(true, c.isDismissible)
     }
 
     @Test
-    fun feature_flag_omits_frequency_fields() {
-        val c = json.decodeFromString<WireEnvelope>(fixture).configs[1]
+    fun the_payload_survives_as_an_opaque_object() {
+        // The payload is template-shaped and deliberately NOT flattened into the model: the
+        // builtins disagree about their fields, and update_available has no `title` at all.
+        val payload = envelope().configs[0].payload
+        assertEquals(
+            "https://play.google.com/store/apps/details?id=com.example.app",
+            payload["store_url"]?.jsonPrimitive?.content,
+        )
+        assertEquals(false, payload["forced"]?.jsonPrimitive?.booleanOrNull)
+    }
+
+    @Test
+    fun a_value_only_config_parses_and_declares_itself_unrenderable() {
+        val c = envelope().configs[1]
         assertEquals("feature_flag", c.template)
         assertEquals("none", c.display)
+        // The one field that matters for a value-only config. The server omits the frequency
+        // fields here and the shipped model defaults them, which is harmless ONLY because
+        // `renders_ui: false` stops it before any frequency rule is consulted — asserted
+        // directly in RemoteConfigEvaluatorTest.
         assertFalse(c.rendersUi)
-        // The server drops these for a non-rendering template, so the client must tolerate
-        // their absence rather than defaulting them to a cap it then tries to honour.
-        assertNull(c.maxImpressions)
-        assertNull(c.cooldownHours)
-        assertNull(c.isDismissible)
+        assertEquals("new_search", c.payload["key"]?.jsonPrimitive?.content)
+        assertEquals(true, c.payload["value"]?.jsonPrimitive?.booleanOrNull)
     }
 }

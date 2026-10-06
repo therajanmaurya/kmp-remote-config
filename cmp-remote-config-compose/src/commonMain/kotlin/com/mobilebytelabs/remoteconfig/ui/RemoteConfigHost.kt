@@ -1,27 +1,13 @@
 package com.mobilebytelabs.remoteconfig.ui
 
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mobilebytelabs.remoteconfig.dispatch.ActionDispatcher
-import com.mobilebytelabs.remoteconfig.dynamic.DynamicUiRenderer
-import com.mobilebytelabs.remoteconfig.dynamic.model.UiAction
-import com.mobilebytelabs.remoteconfig.dynamic.parser.UiNodeParser
 import com.mobilebytelabs.remoteconfig.model.ActionType
 import com.mobilebytelabs.remoteconfig.model.DisplayType
-import com.mobilebytelabs.remoteconfig.model.RemoteConfig
+import com.mobilebytelabs.remoteconfig.model.RemoteConfigItem
 import org.koin.compose.viewmodel.koinViewModel
 
 /**
@@ -52,125 +38,40 @@ fun RemoteConfigHost(
         }
     }
 
-    // Route: dynamic (content_json) or static (templates)
-    if (config.contentJson != null) {
-        DynamicConfigRenderer(
-            config = config,
-            onAction = { uiAction ->
-                val actionType = ActionType(uiAction.type)
-                if (actionType == ActionType.DISMISS) {
-                    viewModel.onConfigDismissed(config.id)
-                } else {
-                    handle(actionType, uiAction.value)
-                    viewModel.onActionClicked(config.id)
-                }
-            },
-            onDismiss = { viewModel.onConfigDismissed(config.id) },
-        )
-    } else {
-        StaticConfigRenderer(
-            config = config,
-            onAction = handle,
-            viewModel = viewModel,
-        )
-    }
-}
-
-@Composable
-private fun DynamicConfigRenderer(config: RemoteConfig, onAction: (UiAction) -> Unit, onDismiss: () -> Unit) {
-    val rootNode = UiNodeParser.parse(config.contentJson ?: return) ?: return
-
-    when (DisplayType.from(config.displayType)) {
-        DisplayType.DIALOG -> {
-            Dialog(
-                onDismissRequest = { if (config.isDismissible) onDismiss() },
-                properties = DialogProperties(
-                    dismissOnBackPress = config.isDismissible,
-                    dismissOnClickOutside = config.isDismissible,
-                    usePlatformDefaultWidth = false,
-                ),
-            ) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
-                    shape = RoundedCornerShape(24.dp),
-                    color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 6.dp,
-                ) {
-                    DynamicUiRenderer(rootNode, onAction)
-                }
-            }
-        }
-
-        DisplayType.FULLSCREEN -> {
-            Dialog(
-                onDismissRequest = { if (config.isDismissible) onDismiss() },
-                properties = DialogProperties(
-                    dismissOnBackPress = config.isDismissible,
-                    usePlatformDefaultWidth = false,
-                ),
-            ) {
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState()),
-                    color = MaterialTheme.colorScheme.background,
-                ) {
-                    DynamicUiRenderer(rootNode, onAction)
-                }
-            }
-        }
-
-        DisplayType.BANNER -> {
-            DynamicUiRenderer(rootNode, onAction)
-        }
-
-        DisplayType.BOTTOM_SHEET -> {
-            Dialog(
-                onDismissRequest = { if (config.isDismissible) onDismiss() },
-                properties = DialogProperties(
-                    dismissOnBackPress = config.isDismissible,
-                    usePlatformDefaultWidth = false,
-                ),
-            ) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-                    color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 6.dp,
-                ) {
-                    DynamicUiRenderer(rootNode, onAction)
-                }
-            }
-        }
-    }
+    StaticConfigRenderer(
+        item = config,
+        onAction = handle,
+        viewModel = viewModel,
+    )
 }
 
 @Composable
 private fun StaticConfigRenderer(
-    config: RemoteConfig,
+    item: RemoteConfigItem,
     onAction: (actionType: ActionType, actionValue: String?) -> Unit,
     viewModel: RemoteConfigViewModel,
 ) {
+    // Derived once per item: the payload is template-shaped, so every display string and the
+    // primary action's destination are resolved by role rather than read from fixed columns.
+    val config = ConfigContent.from(item)
     val handlePrimaryAction: () -> Unit = {
         onAction(ActionType(config.actionType), config.actionValue)
-        viewModel.onActionClicked(config.id)
+        viewModel.onActionClicked(item.id)
     }
 
     val handleSecondaryAction: () -> Unit = {
-        val type = ActionType(config.secondaryActionType)
-        if (type == ActionType.DISMISS) {
-            viewModel.onConfigDismissed(config.id)
-        } else {
-            onAction(type, config.secondaryActionValue)
-            viewModel.onActionClicked(config.id)
-        }
+        // The secondary slot is always the decline path, so it dismisses rather than
+        // dispatching: a "Not now" that fired the primary action would be a trap.
+        viewModel.onConfigDismissed(item.id, permanent = true)
     }
 
     val handleDismiss: () -> Unit = {
-        viewModel.onConfigDismissed(config.id)
+        viewModel.onConfigDismissed(item.id)
     }
 
-    when (DisplayType.from(config.displayType)) {
+    // No recognized presentation: render nothing. The evaluator already drops `renders_ui`
+    // configs, so reaching here means a display this SDK version does not know.
+    when (DisplayType.from(item.display) ?: return) {
         DisplayType.DIALOG -> RemoteConfigDialog(
             config = config,
             onPrimaryAction = handlePrimaryAction,

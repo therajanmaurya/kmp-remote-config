@@ -2,6 +2,62 @@
 
 ## Unreleased — epic rconfig-sdk-control-plane-migration
 
+### Phase 01 · T2 — transport rewrite (breaking)
+
+- `RemoteConfigService` now calls the control plane's `GET /v1-configs` and `POST /v1-events`
+  over an INJECTED Ktor `HttpClient`, replacing the 3.5.28 implementation that built a Supabase
+  client from a consumer-supplied url + anon key and read the `product_remote_config` table over
+  PostgREST. That table is not what the control plane serves, so the dashboard could not reach
+  any device — this is the defect the epic exists to fix.
+- **Breaking:** `supabaseUrl` / `supabaseKey` are gone from the Koin DSL. A consumer now supplies
+  `publishableKey`, `packageName`, `platform`, `appVersion`, an optional Android `certDigest`,
+  and an `HttpClient`. `baseUrl` defaults to the hosted control plane.
+- A fetch now returns a three-state `ConfigFetchResult`: `Success` (configs may legitimately be
+  empty), `Rejected` (the server refused this caller — `key_invalid`, `package_mismatch`,
+  `rate_limited`, …), or `Unavailable` (transport failure; keep serving cache). The old code
+  caught every exception and returned `emptyList()`, so a revoked key and "nothing to show" were
+  indistinguishable to an integrator.
+- `X-RC-SDK-Version` is always sent and never blank: the server answers 403 `sdk_version_missing`
+  rather than an empty set, so a missing header blacks out the whole product. The value resolves
+  defensively — `cmpMetadata()` reaches into an external artifact and anything it throws would
+  otherwise propagate out of every fetch.
+- Error logs carry the exception CLASS only, never the message: a transport error can echo the
+  URL, and the URL carries the publishable key's package context.
+- `RemoteConfigEvaluator` got SMALLER on purpose. It no longer re-checks `is_enabled`, schedule,
+  app-version window or platform — the control plane evaluates all four server-side, so a config
+  that arrives has already matched. Two implementations of the same rules would drift, and the
+  client's copy loses: it cannot see screens, cohorts or rollout buckets at all. What remains is
+  what only the device knows — impression caps, dismissal, cooldown.
+- `multiplatform-settings-no-arg` is now declared explicitly. It had been arriving transitively
+  through supabase-postgrest, so removing the old transport broke an unrelated source set.
+
+### Phase 01 · T3 — unknown displays are skipped, not mis-rendered
+
+- `DisplayType.from()` returns `null` for an unrecognized `display` instead of falling back to
+  `DIALOG`; `RemoteConfigHost` renders nothing. Closes two cases: `display: "none"` (a value-only
+  feature flag could have shown a modal) and any presentation the control plane adds later, which
+  reaches an older SDK as an unknown string. The client half of migration 010's display closure.
+- `RemoteConfigHost` no longer routes to the server-driven-document renderer. `/v1/configs` serves
+  `template` + `payload` and carries no `content_json`, so that branch had no data source. The
+  public `DynamicUiRenderer` / `UiNodeParser` API is unchanged — a consumer holding its own
+  `UiDocument` still renders it; the Host simply no longer has one to pass.
+- New `ConfigContent` derives each presentation's strings and its primary action's destination
+  from the opaque payload BY ROLE, with per-template defaults. Reading `payload.title` directly
+  renders an empty overlay for most of the fifteen builtins — `update_available` has no title at
+  all, which is why it now falls back to "Update available".
+
+### Phase 01 · T4 — the contract test asserts the shipped model
+
+- `ContractFixtureTest` now deserializes `contract/configs-response.json` into the production
+  `RemoteConfigEnvelope`. It previously used private `WireEnvelope` / `WireConfig` classes that
+  existed only inside that file, so a commit could change the wire shape and those two classes
+  together, pass both halves of the contract test, and leave the real SDK reading something else.
+  That is the drift that let the dashboard and the device disagree. The `slice-3` marker is gone.
+- Every wire field is asserted BY VALUE, deliberately: the shipped model defaults each field so an
+  older client tolerates a newer server, which means a renamed key deserializes silently into its
+  default rather than throwing. Proven by mutation — renaming `template` to `templateId` fails both
+  this test and the inlined-fixture drift check; restoring it passes.
+
 ### Phase 01 · T1 — shipped wire model (breaking)
 
 - Added `RemoteConfigEnvelope` / `RemoteConfigItem` in `cmp-remote-config`: the SHIPPED model

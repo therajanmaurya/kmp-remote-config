@@ -1,20 +1,20 @@
 package com.mobilebytelabs.remoteconfig.di
 
+import io.ktor.client.HttpClient
+
 /**
- * Internal settings holder. Populated by the `remoteConfig { … }` DSL
- * (see [com.mobilebytelabs.remoteconfig.remoteConfig]) and resolved as a Koin `single<RemoteConfigSettings>`.
+ * Resolved configuration for the rconfig SDK, built by `remoteConfig { … }`.
  *
- * Not part of the public API — consumers configure via the DSL, never construct this directly.
+ * 5.0.0 replaced `supabaseUrl` / `supabaseKey` — the SDK no longer talks to a consumer's own
+ * Supabase project. It calls the rconfig control plane with a publishable key bound to the
+ * app's package and signing certificate.
  */
 internal data class RemoteConfigSettings(
-    val supabaseUrl: String,
-    val supabaseKey: String,
-    /**
-     * Optional lazy supplier of the host app's version name (e.g. "2026.8.4"). Invoked by
-     * [com.mobilebytelabs.remoteconfig.RemoteConfigEvaluator] at evaluate time (NOT at DI-build
-     * time) so a platform context that initializes after Koin — such as an Android app-context
-     * holder — is already ready. Its value gates a config's `min_app_version` / `max_app_version`
-     * window. Null ⇒ no version gating (default).
-     */
-    val appVersionProvider: (() -> String?)? = null,
+    val publishableKey: String,
+    val packageName: String,
+    val platform: String,
+    val appVersion: String,
+    val httpClient: HttpClient,
+    val certDigest: String? = null,
+    val baseUrl: String,
 )

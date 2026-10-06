@@ -1,6 +1,6 @@
 package com.mobilebytelabs.remoteconfig.local
 
-import com.mobilebytelabs.remoteconfig.model.RemoteConfig
+import com.mobilebytelabs.remoteconfig.model.RemoteConfigItem
 import com.russhwolf.settings.Settings
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
@@ -38,11 +38,11 @@ class RemoteConfigLocalStore(private val settings: Settings = defaultSettings())
     // Persists the most recent active config so the host can render INSTANTLY from
     // cache while a fresh fetch runs in the background (or the network is slow/blocked).
 
-    fun getCachedConfig(): RemoteConfig? = settings.getStringOrNull(KEY_LAST_CONFIG)?.let { raw ->
-        runCatching { json.decodeFromString<RemoteConfig>(raw) }.getOrNull()
+    fun getCachedConfig(): RemoteConfigItem? = settings.getStringOrNull(KEY_LAST_CONFIG)?.let { raw ->
+        runCatching { json.decodeFromString<RemoteConfigItem>(raw) }.getOrNull()
     }
 
-    fun cacheConfig(config: RemoteConfig) {
+    fun cacheConfig(config: RemoteConfigItem) {
         runCatching { settings.putString(KEY_LAST_CONFIG, json.encodeToString(config)) }
     }
 
