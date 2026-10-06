@@ -12,7 +12,7 @@ It publishes exactly two artifacts and carries the backend + dashboard that driv
 | `cmp-remote-config/` | Headless SDK — fetch, evaluate, UI-document model |
 | `cmp-remote-config-compose/` | Compose surface — `RemoteConfigHost`, presentations, Koin DSL |
 | `supabase/` | Backend — schema (`migrations/`) + Edge Functions (`functions/`) |
-| `dashboard/` | Operator UI (Node http server, adapted from KmpToolkit's tickets-dashboard) |
+| `dashboard/` | Operator UI — Next.js 14 App Router on Cloudflare Pages (cloned from PayCraft's stack) |
 | `build-logic/` | Dokka + Kover convention plugins (`io.github.mobilebytelabs.remoteconfig.*`) |
 
 ## Invariants

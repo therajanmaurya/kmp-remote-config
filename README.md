@@ -34,7 +34,7 @@ Three pieces that ship as one product:
 |---|---|---|
 | **SDK** | [`cmp-remote-config`](cmp-remote-config/) + [`cmp-remote-config-compose`](cmp-remote-config-compose/) | Fetch, evaluate, render. Headless core + Compose surface |
 | **Backend** | [`supabase/`](supabase/) | Schema + Edge Functions: the key registry, targeting, templates, impressions |
-| **Dashboard** | [`dashboard/`](dashboard/) | Operator UI — author a config from a template form, target it, schedule it |
+| **Dashboard** | [`dashboard/`](dashboard/) | Operator UI (Next.js 14 → Cloudflare Pages) — author a config from a template form, target it, schedule it |
 
 Why the SDK is two artifacts: the Compose compiler plugin applies to *every* compilation and fails
 on any target without the Compose runtime on the class path. Splitting the renderer out is what lets
