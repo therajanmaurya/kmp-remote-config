@@ -121,3 +121,29 @@ jobs:
         run: deno test --allow-env --allow-read supabase/functions/v1-configs/contract_test.ts
       - name: Kotlin half
         run: ./gradlew :cmp-remote-config:jvmTest --tests '*ContractFixture*'
+
+  live-sdk-contract:
+    name: Live SDK contract (deployed plane ↔ shipped model)
+    runs-on: ubuntu-latest
+    # Only on pushes to the default branch and on demand. It seeds and removes sentinel rows on
+    # the DEPLOYED project, so running it per-PR would have many forks mutating one plane.
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/dev')
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+
+      # The job the `contract` job above cannot do. That one proves the SDK model agrees with a
+      # fixture a human committed; this proves the DEPLOYED function agrees with it too. A
+      # migration applied to prod but never reflected in the contract is invisible to every
+      # local suite, because a local stack is built from those same committed migrations.
+      - name: Fetch live and parse with the shipped model
+        env:
+          # Resolved by the script from the vault when run locally. In CI the value arrives as a
+          # repo secret, propagated ONLY by `/secrets sync-to-ci` (RULE-SECRETS-VAULT-001) —
+          # never `gh secret set` against this repo by hand.
+          RC_SERVICE_ROLE_KEY: ${{ secrets.KMP_REMOTE_CONFIG_SUPABASE_SERVICE_ROLE_KEY }}
+        run: bash supabase/tests/e2e_sdk_contract.sh

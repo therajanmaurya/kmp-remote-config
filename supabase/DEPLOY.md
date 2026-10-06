@@ -351,3 +351,44 @@ it does. Two cases this closes that the constraint alone cannot:
 
 So the two halves cover different failure modes and both are needed: the constraint stops
 bad rows being written, the client stops good-but-newer rows being mis-drawn.
+
+## Live checks
+
+| Script | Asserts | Needs |
+|---|---|---|
+| `supabase/tests/e2e_sdk_contract.sh` | the DEPLOYED `/v1-configs` still speaks the shipped SDK wire model | service_role (vault, or `RC_SERVICE_ROLE_KEY` in CI) |
+
+`e2e_sdk_contract.sh` (Phase 01 / T5) seeds a sentinel app + test key + config on the deployed
+project, fetches through the real edge function exactly as `RemoteConfigService` does, parses the
+captured body with the production `RemoteConfigEnvelope` under a **strict** reader
+(`ignoreUnknownKeys = false`), then deletes the sentinel app — `app_key` and `config` both
+cascade from it, so one DELETE cannot leave a half-removed sentinel behind. Idempotent: the app
+upserts on `(owner_id, slug)` and re-running leaves zero residue.
+
+It catches what the committed contract test structurally cannot. `ContractFixtureTest` proves the
+SDK model agrees with a fixture a human wrote; a local stack is BUILT from the same committed
+migrations, so neither can notice a migration applied to prod and never reflected in the
+contract. Only a call to the live plane can.
+
+The strict reader is deliberate and is the opposite of the SDK's own lenient one. The SDK must
+tolerate an unknown field so an old client survives a new server; this check exists to *notice*
+that, loudly, the moment the deployed function grows a field the committed model has never seen.
+
+**It needs an auth user to own the sentinel app** (`app.owner_id` is `NOT NULL REFERENCES
+auth.users`). It resolves one from the project and never creates one. On a project with no users
+it exits 4 and asserts nothing.
+
+### State of the deployed plane — 2026-10-07
+
+| Table | Rows |
+|---|---|
+| `template` | 15 (the builtins) |
+| `app` | 0 |
+| `app_key` | 0 |
+| `config` | 0 |
+| `auth.users` | 1 (google) |
+
+One operator has signed in; **no app, key or config has ever been created through the dashboard.**
+The 15 builtin templates are seed data from migration 004, not operator output. So the dashboard
+being deployed and reachable is not evidence that an operator can drive it end to end — that is
+still unproven, and is what the epic's G-11 walkthrough exists to establish.

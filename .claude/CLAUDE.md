@@ -28,13 +28,17 @@ It publishes exactly two artifacts and carries the backend + dashboard that driv
 4. **One version source** — `gradle.properties#kmpremoteconfig.version`. Both modules read it.
 5. **Default branch is `dev`.** Every workflow triggers on `dev`; there is no `main`.
 6. **No publish from this repo until KmpToolkit stops publishing these two artifacts.** Otherwise
-   two repos race the same Maven coordinate.
+   two repos race the same Maven coordinate. **Still holds at the 5.0.0 line**: `gradle.properties`
+   now reads `5.0.0` and `docs/releases/5.0.0.md` is authored, but nothing is published. A second
+   gate also applies — epic gate G-11, the operator walkthrough: as of 2026-10-07 the deployed
+   plane has 15 builtin templates and zero apps, keys or configs, so no human has driven the
+   dashboard end to end.
 
 ## cmp-remote-config
 
 ```yaml
 artifact: io.github.mobilebytelabs:cmp-remote-config
-version:  4.0.0-alpha01
+version:  5.0.0 (prepared, unpublished — see invariant 6)
 package:  com.mobilebytelabs.remoteconfig
 targets:  15 (headless — Android, iOS, macOS, watchOS, tvOS, JVM, JS, wasmJs, linuxX64, mingwX64)
 backend:  supabase (migrating to this repo's own control plane — see below)
@@ -58,7 +62,7 @@ di:       koin — `Module.remoteConfig { }` DSL in the -compose module
 
 ```yaml
 artifact: io.github.mobilebytelabs:cmp-remote-config-compose
-version:  4.0.0-alpha01
+version:  5.0.0 (prepared, unpublished — see invariant 6)
 package:  com.mobilebytelabs.remoteconfig (android namespace: …remoteconfig.compose)
 targets:  7 (Compose-MP only — iosX64/macosX64 absent: Compose 1.12.0 publishes no artifact)
 ```
@@ -83,7 +87,16 @@ targets:  7 (Compose-MP only — iosX64/macosX64 absent: Compose 1.12.0 publishe
 
 ## Not yet built
 
-The design these modules are moving toward — control plane, publishable keys with Play Integrity /
-App Attest, screen-scoped targeting, server-side template registry, operator dashboard — is
-specified in the framework plan layer, not here. The SDK in this repo is still the KmpToolkit
-`3.5.28` behaviour: it talks directly to a consumer-supplied Supabase project with an anon key.
+The control plane, the 15-template registry, publishable keys and the operator dashboard are
+BUILT and deployed (`supabase/DEPLOY.md`). As of 2026-10-07 the **SDK transport is migrated** —
+it calls `/v1-configs` and `/v1-events` with the publishable-key header tuple, verified against
+the deployed plane by `supabase/tests/e2e_sdk_contract.sh`.
+
+Still open: publish/versioning, typed parameters + named conditions, in-app defaults, staged
+rollout, the remaining dashboard surfaces, and the marketing site — tracked as phases 02–07 of
+the `rconfig-sdk-control-plane-migration` epic in the framework plan layer. Play Integrity /
+App Attest remain specified but unbuilt (`/v1/attest` has nothing behind it — see DEPLOY.md).
+
+**The dashboard has never been driven end to end by a human.** The deployed plane holds 15
+builtin templates from migration 004 and zero apps, keys or configs. That walkthrough is epic
+gate G-11 and it gates publishing.

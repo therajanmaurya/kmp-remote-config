@@ -58,6 +58,32 @@
   default rather than throwing. Proven by mutation — renaming `template` to `templateId` fails both
   this test and the inlined-fixture drift check; restoring it passes.
 
+### Phase 01 · T6 — 5.0.0 prepared, NOT published
+
+- `gradle.properties#kmpremoteconfig.version` → `5.0.0`; release notes at `docs/releases/5.0.0.md`
+  covering the transport change and the removal of `supabaseUrl` / `supabaseKey`.
+- **Nothing published.** Two gates are open: repo invariant 6 (KmpToolkit still publishes these
+  two coordinates) and epic gate G-11 (no operator has driven the dashboard end to end — the
+  deployed plane holds 15 builtin templates and zero apps, keys or configs).
+- Canary `tests/fixtures/sdk-control-plane-canary/` locks G-1: the legacy-transport grep fails on
+  a red fixture carrying the 3.5.28 PostgREST service and passes on the migrated one. The green
+  fixture names the legacy symbols inside a comment on purpose — it proves the predicate reads
+  code rather than text, which is the half most easily broken by "fixing" a noisy gate.
+
+### Phase 01 · T5 — live SDK contract check
+
+- Added `supabase/tests/e2e_sdk_contract.sh`: seeds a sentinel app + test key + config on the
+  DEPLOYED project, fetches through the real `/v1-configs` edge function with the same headers
+  `RemoteConfigService` sends, parses the captured body with the production `RemoteConfigEnvelope`
+  under a strict reader, then removes the sentinel (cascade from the app row). Idempotent, zero
+  residue. Wired into `control-plane.yml` as the `live-sdk-contract` job on `dev` + manual.
+- This is the first check in the project's history that proves the SDK's model against the LIVE
+  plane rather than against a committed fixture. A local stack is built from the same migrations
+  the fixture reflects, so a migration applied to prod and never committed is invisible to every
+  other suite.
+- `LiveWireParseTest` (jvmTest) does the parsing. It SKIPS when `-Drc.live.body` is absent, so
+  `allTests` stays runnable with no network and no credentials.
+
 ### Phase 01 · T1 — shipped wire model (breaking)
 
 - Added `RemoteConfigEnvelope` / `RemoteConfigItem` in `cmp-remote-config`: the SHIPPED model
