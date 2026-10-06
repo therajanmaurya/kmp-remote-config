@@ -6,3 +6,6 @@ out/
 next-env.d.ts
 test-results/
 playwright-report/
+
+# Playwright auth fixtures: storage states hold real (local) session tokens.
+e2e/fixtures/
