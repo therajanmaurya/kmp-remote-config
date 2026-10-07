@@ -98,8 +98,9 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            // ConfigContent reads the config's opaque JSON payload.
-            implementation(libs.kotlinx.serialization.json)
+            // ConfigContent and the template bodies read the opaque JSON payload, so these
+            // types are part of this module's surface too — see the note in cmp-remote-config.
+            api(libs.kotlinx.serialization.json)
             // `api`, not `implementation`: this module's public surface takes and returns core
             // types (RemoteConfig, UiNode, ActionType), so a consumer must see them — and it keeps
             // a single `cmp-remote-config-compose` dependency sufficient to use the whole library.

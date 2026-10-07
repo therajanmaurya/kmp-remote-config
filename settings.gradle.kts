@@ -24,6 +24,12 @@ rootProject.name = "kmp-remote-config"
 include(":cmp-remote-config")
 include(":cmp-remote-config-compose")
 
+// ── Sample ─────────────────────────────────────────────────────────────────────
+// A consumer of the two artefacts above, integrating them the way the dashboard's onboarding
+// snippet tells an operator to. It exists so that path is compiled rather than asserted, and
+// it depends on the PROJECTS rather than published coordinates so it breaks when the SDK does.
+include(":sample")
+
 // NOTE: `cmp-observe` is NOT a module here. It stays published from MobileByteLabs/KmpToolkit
 // and is consumed as `io.github.mobilebytelabs:cmp-observe` — vendoring a second copy of a
 // published module is exactly the drift this split was meant to avoid.

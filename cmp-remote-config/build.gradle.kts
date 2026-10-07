@@ -126,8 +126,15 @@ kotlin {
             implementation(libs.ktor.client.content.negotiation)
             implementation(libs.ktor.serialization.kotlinx.json)
 
-            // Serialization
-            implementation(libs.kotlinx.serialization.json)
+            // Serialization — `api`, NOT `implementation`.
+            //
+            // The public surface exposes kotlinx-serialization types: `remoteConfigDefaults`
+            // returns a JsonObject, `RemoteConfigItem.payload` IS one, and the typed getters
+            // take and return them. With `implementation` those types are absent from a
+            // consumer's compile classpath and the integration the onboarding wizard prints
+            // does not compile — which is exactly what the sample module hit on its first
+            // build. A dependency that appears in your API is part of your API.
+            api(libs.kotlinx.serialization.json)
 
             // DI
             implementation(libs.koin.core)

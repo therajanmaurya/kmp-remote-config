@@ -1,0 +1,25 @@
+{
+  "name": "@mobilebytelabs/rconfig-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MCP server for the rconfig control plane — onboard apps and manage parameters, conditions and releases.",
+  "type": "module",
+  "bin": {
+    "rconfig-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "node --test --experimental-strip-types __tests__/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "@supabase/supabase-js": "^2.45.4",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.0",
+    "typescript": "^5.6.3"
+  }
+}
