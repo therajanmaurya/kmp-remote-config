@@ -44,6 +44,10 @@ export function AuthoringForm({
   const [startsAt, setStartsAt] = useState(existing?.starts_at?.slice(0, 16) ?? "")
   const [endsAt, setEndsAt] = useState(existing?.ends_at?.slice(0, 16) ?? "")
   const [priority, setPriority] = useState(existing?.priority ?? 0)
+  // Defaults to 100 to match the column default: a config an operator never touches here
+  // must reach everyone, not nobody.
+  const [rollout, setRollout] = useState(existing?.rollout_percentage ?? 100)
+  const [cohort, setCohort] = useState(existing?.cohort ?? "")
   const [maxImp, setMaxImp] = useState(existing?.max_impressions ?? 1)
   const [cooldown, setCooldown] = useState(existing?.cooldown_hours ?? 24)
   const [dismissible, setDismissible] = useState(existing?.is_dismissible ?? true)
@@ -86,6 +90,8 @@ export function AuthoringForm({
       min_app_version: minV || null,
       max_app_version: maxV || null,
       priority,
+      rollout_percentage: rollout,
+      cohort: cohort.trim() === "" ? null : cohort.trim(),
       is_enabled: enabled,
       starts_at: startsAt ? new Date(startsAt).toISOString() : null,
       ends_at: endsAt ? new Date(endsAt).toISOString() : null,
@@ -274,6 +280,34 @@ export function AuthoringForm({
                 <p className="mt-1 text-xs text-neutral-500">Higher wins when several match.</p>
               </div>
 
+              <div data-testid="rollout-controls">
+                <label htmlFor="rollout" className="block text-sm font-medium">
+                  Rollout — {rollout}% of devices
+                </label>
+                <input
+                  id="rollout"
+                  data-testid="rollout-slider"
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={5}
+                  value={rollout}
+                  onChange={(e) => setRollout(Number(e.target.value))}
+                  className="mt-2 w-full"
+                />
+                <p className="mt-1 text-xs text-neutral-500">
+                  Each device is placed in a fixed bucket for this config, so raising the
+                  percentage only ever <strong>adds</strong> devices — nobody who already has it
+                  loses it, and a device never flickers in and out between fetches. Lowering it
+                  removes devices from the top of the range. 0% keeps the config published but
+                  reaching nobody.
+                </p>
+                <label htmlFor="cohort" className="mt-3 block text-sm font-medium">Cohort</label>
+                <input id="cohort" value={cohort} onChange={(e) => setCohort(e.target.value)}
+                  placeholder="optional label, e.g. beta"
+                  className="mt-1 w-full rounded border px-3 py-2 text-sm" />
+              </div>
+
               {shape.showImpressionControls && (
                 <div data-testid="impression-controls" className="grid grid-cols-2 gap-3">
                   <div>
@@ -290,6 +324,34 @@ export function AuthoringForm({
                   </div>
                 </div>
               )}
+
+              <div data-testid="rollout-controls">
+                <label htmlFor="rollout" className="block text-sm font-medium">
+                  Rollout — {rollout}% of devices
+                </label>
+                <input
+                  id="rollout"
+                  data-testid="rollout-slider"
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={5}
+                  value={rollout}
+                  onChange={(e) => setRollout(Number(e.target.value))}
+                  className="mt-2 w-full"
+                />
+                <p className="mt-1 text-xs text-neutral-500">
+                  Each device is placed in a fixed bucket for this config, so raising the
+                  percentage only ever <strong>adds</strong> devices — nobody who already has it
+                  loses it, and a device never flickers in and out between fetches. Lowering it
+                  removes devices from the top of the range. 0% keeps the config published but
+                  reaching nobody.
+                </p>
+                <label htmlFor="cohort" className="mt-3 block text-sm font-medium">Cohort</label>
+                <input id="cohort" value={cohort} onChange={(e) => setCohort(e.target.value)}
+                  placeholder="optional label, e.g. beta"
+                  className="mt-1 w-full rounded border px-3 py-2 text-sm" />
+              </div>
 
               {shape.showImpressionControls && (
                 <div>

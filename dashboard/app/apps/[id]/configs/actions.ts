@@ -12,6 +12,8 @@ export type ConfigInput = {
   min_app_version: string | null
   max_app_version: string | null
   priority: number
+  rollout_percentage: number
+  cohort: string | null
   is_enabled: boolean
   starts_at: string | null
   ends_at: string | null
@@ -78,7 +80,7 @@ export async function duplicateConfig(appId: string, configId: string) {
   const { data: src, error: readError } = await supabase
     .from("config")
     .select(
-      "template_id, payload, display, screens, platforms, min_app_version, max_app_version, locale, priority, starts_at, ends_at, max_impressions, cooldown_hours, is_dismissible",
+      "template_id, payload, display, screens, platforms, min_app_version, max_app_version, locale, priority, starts_at, ends_at, max_impressions, cooldown_hours, is_dismissible, rollout_percentage, cohort",
     )
     .eq("id", configId)
     .eq("app_id", appId)

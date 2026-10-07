@@ -64,3 +64,21 @@ test("rolling back creates a NEW version and leaves the one being undone in the 
   // cannot answer the question the feature exists to answer — what was live, and when.
   await expect(page.getByTestId("version-row")).toHaveCount(before + 1)
 })
+
+test("a rollout change stages like any other edit, and reads as a percentage", async ({ page }) => {
+  await page.goto(`/apps/${ids.app_a_id}/configs`)
+  await page.getByTestId("config-row").first().click()
+
+  // Moving the slider is the most consequential edit in the product. If it did not stage,
+  // an operator could take a config from 10% to everyone with the dashboard reporting
+  // nothing pending — the exact class of silent change Phase 02 exists to prevent.
+  await page.getByTestId("rollout-slider").fill("20")
+  await page.getByTestId("save-config").click()
+
+  await expect(page.getByTestId("unpublished-pill")).toBeVisible()
+  await page.getByTestId("unpublished-pill").click()
+
+  const diff = page.getByTestId("staged-change").first()
+  await expect(diff).toContainText("100")
+  await expect(diff).toContainText("20")
+})

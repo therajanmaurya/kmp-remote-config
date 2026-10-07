@@ -61,6 +61,14 @@ class RemoteConfigService(
     private val httpClient: HttpClient,
     /** Android only; the server compares it against the key's registered cert digests. */
     private val certDigest: String? = null,
+    /**
+     * Stable per-install id, used SERVER-side to bucket this device for a staged rollout.
+     *
+     * Null is honest rather than convenient: the server excludes an unidentified caller from
+     * any partial rollout instead of including it, so a missing id makes a staged rollout
+     * reach fewer devices, never more.
+     */
+    private val deviceId: String? = null,
 ) {
     private val json = Json { ignoreUnknownKeys = true; isLenient = true; coerceInputValues = true }
 
@@ -138,6 +146,9 @@ class RemoteConfigService(
         // answers 403 sdk_version_missing rather than silently returning nothing.
         header("X-RC-SDK-Version", sdkVersion)
         certDigest?.let { header("X-RC-Cert", it) }
+        // Bucketing input for staged rollouts. Not an identifier the server stores against
+        // the response — it only decides which side of a percentage this install falls on.
+        deviceId?.let { header("X-RC-Device", it) }
     }
 
     private suspend fun HttpResponse.errorCode(): String = try {

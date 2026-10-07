@@ -209,6 +209,46 @@ code=$(curl -s -K "$WORK/curlrc" -o /dev/null -w '%{http_code}' \
 case "$code" in 4*) r=refused ;; *) r="accepted($code)" ;; esac
 check "a 1-second fetch interval is refused by the database (G-6c)" refused "$r"
 
+# ---- G-7: a staged rollout reaches a stable slice, and raising it only adds -----
+# Drives the DEPLOYED function with many device ids. The unit tests prove the hash's
+# properties; this proves the deployed function actually consults the device header and the
+# published rollout_percentage, which no unit test can show.
+rolled() { # $1 = percentage -> prints the number of devices (of 40) that receive the config
+  curl -s -K "$WORK/curlrc" -X PATCH "$REST/config?app_id=eq.$APP_ID" \
+    -d "{\"rollout_percentage\":$1}" >/dev/null 2>&1
+  curl -s -K "$WORK/curlrc" -X POST "$REST/rpc/publish" -d "{\"p_app\":\"$APP_ID\"}" >/dev/null 2>&1
+  local hit=0 i
+  : > "$WORK/members_$1.txt"
+  for i in $(seq 1 40); do
+    if curl -s "$FUNC" \
+         -H "X-RC-Key: $SENTINEL_KEY" -H "X-RC-Package: $SENTINEL_BUNDLE" \
+         -H "X-RC-Platform: android" -H "X-RC-App-Version: 5.0.0" \
+         -H "X-RC-SDK-Version: 5.0.0" -H "X-RC-Device: dev-$i" \
+       | grep -q '"id"'; then
+      hit=$((hit+1)); echo "dev-$i" >> "$WORK/members_$1.txt"
+    fi
+  done
+  echo "$hit"
+}
+
+n0=$(rolled 0)
+check "0% reaches nobody (G-7)" 0 "$n0"
+
+n100=$(rolled 100)
+check "100% reaches everybody (G-7)" 40 "$n100"
+
+n50=$(rolled 50)
+if [ "$n50" -gt 8 ] && [ "$n50" -lt 32 ]; then s=plausible; else s="$n50/40"; fi
+check "50% reaches roughly half (G-7)" plausible "$s"
+
+n75=$(rolled 75)
+# G-7c on the DEPLOYED function: every device in the 50% set must still be in the 75% set.
+missing=$(comm -23 <(sort "$WORK/members_50.txt") <(sort "$WORK/members_75.txt") | wc -l | tr -d " ")
+check "raising 50% to 75% is purely additive (G-7c)" 0 "$missing"
+
+# Restore full rollout so the later assertions see the config.
+rolled 100 >/dev/null
+
 # ---- parse the LIVE body with the shipped model ---------------------------------
 ( cd "$REPO" && ./gradlew --quiet :cmp-remote-config:jvmTest \
     --tests '*LiveWireParseTest*' -Drc.live.body="$WORK/body.json" --rerun-tasks ) > "$WORK/parse.log" 2>&1

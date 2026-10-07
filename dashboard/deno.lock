@@ -1,0 +1,42 @@
+{
+  "version": "5",
+  "specifiers": {
+    "jsr:@std/yaml@*": "1.2.0"
+  },
+  "jsr": {
+    "@std/yaml@1.2.0": {
+      "integrity": "20beb41e4983ba3437dbefac62b14061ab058e8a187596f19d28ff9035f6e6cf"
+    }
+  },
+  "workspace": {
+    "packageJson": {
+      "dependencies": [
+        "npm:@cloudflare/next-on-pages@1.13.16",
+        "npm:@playwright/test@^1.61.0",
+        "npm:@supabase/ssr@0.5",
+        "npm:@supabase/supabase-js@^2.45.0",
+        "npm:@types/jest@30",
+        "npm:@types/node@22",
+        "npm:@types/react-dom@^18.3.0",
+        "npm:@types/react@^18.3.0",
+        "npm:autoprefixer@^10.4.20",
+        "npm:clsx@^2.1.1",
+        "npm:eslint-config-next@^14.2.35",
+        "npm:eslint@^8.57.1",
+        "npm:jest-environment-node@^30.4.1",
+        "npm:jest@^30.4.2",
+        "npm:lucide-react@0.400",
+        "npm:next@14.2.35",
+        "npm:postcss@^8.4.47",
+        "npm:react-dom@^18.3.1",
+        "npm:react@^18.3.1",
+        "npm:recharts@^2.12.0",
+        "npm:tailwind-merge@^2.5.0",
+        "npm:tailwindcss@^3.4.12",
+        "npm:ts-jest@^29.4.11",
+        "npm:typescript@^5.6.0",
+        "npm:wrangler@4.125.0"
+      ]
+    }
+  }
+}

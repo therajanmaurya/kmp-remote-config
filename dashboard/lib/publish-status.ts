@@ -29,7 +29,7 @@ export async function getPublishStatus(
   const [{ data: latest }, { data: drafts }] = await Promise.all([
     supabase.from("config_version").select("version, content")
       .eq("app_id", appId).order("version", { ascending: false }).limit(1).maybeSingle(),
-    supabase.from("config").select("id, template_id, payload, display, priority, is_enabled")
+    supabase.from("config").select("id, template_id, payload, display, priority, is_enabled, rollout_percentage, cohort")
       .eq("app_id", appId).eq("is_enabled", true).order("priority", { ascending: false }),
   ])
 
@@ -46,12 +46,21 @@ export async function getPublishStatus(
     const was = published.get(d.id)
     // Compare only the fields a device actually receives. Including updated_at or version
     // here would mark every row changed forever, which trains an operator to ignore the pill.
-    const after = { template_id: d.template_id, payload: d.payload, display: d.display, priority: d.priority }
+    // rollout_percentage and cohort are compared like any other served field. Omitting them
+    // would let an operator move a config from 10% to 100% with the dashboard reporting
+    // nothing staged — the single most consequential edit in the product, invisible.
+    const after = {
+      template_id: d.template_id, payload: d.payload, display: d.display, priority: d.priority,
+      rollout_percentage: d.rollout_percentage ?? 100, cohort: d.cohort ?? null,
+    }
     if (!was) {
       staged.push({ id: d.id, template_id: d.template_id, label: d.template_id, kind: "new", before: null, after })
       continue
     }
-    const before = { template_id: was.template_id, payload: was.payload, display: was.display, priority: was.priority }
+    const before = {
+      template_id: was.template_id, payload: was.payload, display: was.display, priority: was.priority,
+      rollout_percentage: was.rollout_percentage ?? 100, cohort: was.cohort ?? null,
+    }
     if (JSON.stringify(before) !== JSON.stringify(after)) {
       staged.push({ id: d.id, template_id: d.template_id, label: d.template_id, kind: "modified", before, after })
     }
@@ -66,7 +75,10 @@ export async function getPublishStatus(
       template_id: String(row.template_id ?? ""),
       label: String(row.template_id ?? ""),
       kind: "removed",
-      before: { template_id: row.template_id, payload: row.payload, display: row.display, priority: row.priority },
+      before: {
+        template_id: row.template_id, payload: row.payload, display: row.display, priority: row.priority,
+        rollout_percentage: row.rollout_percentage ?? 100, cohort: row.cohort ?? null,
+      },
       after: null,
     })
   }

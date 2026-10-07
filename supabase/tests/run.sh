@@ -17,6 +17,7 @@ TESTS=(
   publish_test.sql
   parameter_test.sql
   settings_test.sql
+  rollout_test.sql
   rls_test.sql
 )
 

@@ -5,6 +5,7 @@ import { corsPreflight, failSoftConfigs, jsonForbidden, jsonOk, jsonRateLimited 
 import { consumeRateLimit, readSubject } from "../_shared/rate-limit.ts";
 import { type ConfigRow, matchesAudience, sdkCanRender, type TemplateRow, toWireConfig } from "./audience.ts";
 import { resolveParameters } from "./parameters.ts";
+import { inRollout } from "./rollout.ts";
 
 // A snapshot entry is `to_jsonb(config) || {template:…}`, so it carries every config column
 // plus the template contract frozen at publish time. Schedule bounds travel with it because
@@ -13,6 +14,8 @@ type Row = ConfigRow & {
   template: TemplateRow;
   starts_at?: string | null;
   ends_at?: string | null;
+  rollout_percentage?: number;
+  cohort?: string | null;
 };
 
 Deno.serve(async (req) => {
@@ -64,6 +67,10 @@ Deno.serve(async (req) => {
       appVersion: h.get("X-RC-App-Version"),
       sdkVersion: h.get("X-RC-SDK-Version"),
       screen: new URL(req.url).searchParams.get("screen"),
+      // Bucketing input. Absent for an SDK older than the rollout feature, or a host app that
+      // blocked it — such a caller is EXCLUDED from any partial rollout rather than included,
+      // because the alternative turns "10%" into "10% plus everyone we cannot identify".
+      deviceId: h.get("X-RC-Device"),
     };
 
     // A missing SDK version fails every template's min_sdk_version check, so ONE absent
@@ -101,6 +108,7 @@ Deno.serve(async (req) => {
       // Everything else about the row is fixed at publish; only the clock moves.
       .filter((r) => withinSchedule(r, now))
       .filter((r) => matchesAudience(r, ctx))
+      .filter((r) => inRollout(r.id, ctx.deviceId, r.rollout_percentage ?? 100))
       .filter((r) => sdkCanRender(r.template, ctx.sdkVersion))
       .map((r) => toWireConfig(r, r.template));
 
@@ -128,9 +136,23 @@ Deno.serve(async (req) => {
     const { data: settingsRow } = await settingsQuery;
     const settings = settingsRow ?? undefined;
 
-    // No device identity participates in this response, so it is shared across every device
-    // in the same audience tuple — which is what keeps it effectively free at the edge.
-    return jsonOk({ schema_version: 1, configs, parameters, ...(settings ? { settings } : {}) }, 60);
+    // CACHING DEPENDS ON WHETHER A ROLLOUT IS IN FLIGHT.
+    //
+    // Without a partial rollout no device identity participates in the response, so it is
+    // shared across every device in the same audience tuple — which is what keeps it
+    // effectively free at the edge.
+    //
+    // The moment any config is partially rolled out, the response becomes device-SPECIFIC.
+    // Serving it from a shared cache would hand one device's rollout membership to every
+    // other device behind that cache entry, which both breaks the staging and makes the
+    // bucketing look random from the outside. So caching is dropped for exactly those
+    // responses, and kept for the common case where nothing is staged.
+    const partialRollout = snapshot.some((r) => (r.rollout_percentage ?? 100) < 100);
+
+    return jsonOk(
+      { schema_version: 1, configs, parameters, ...(settings ? { settings } : {}) },
+      partialRollout ? 0 : 60,
+    );
   } catch (e) {
     return failSoft("unhandled", e);
   }

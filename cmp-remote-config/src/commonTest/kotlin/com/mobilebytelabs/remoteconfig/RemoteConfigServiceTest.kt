@@ -46,6 +46,7 @@ class RemoteConfigServiceTest {
                     "X-RC-Platform" to request.headers["X-RC-Platform"],
                     "X-RC-App-Version" to request.headers["X-RC-App-Version"],
                     "X-RC-SDK-Version" to request.headers["X-RC-SDK-Version"],
+                    "X-RC-Device" to request.headers["X-RC-Device"],
                 ),
             )
             respond(
@@ -61,6 +62,7 @@ class RemoteConfigServiceTest {
             platform = "android",
             appVersion = "4.3.0",
             httpClient = HttpClient(engine),
+            deviceId = "device-under-test",
         )
     }
 
@@ -80,6 +82,16 @@ class RemoteConfigServiceTest {
         )
         assertTrue(h["url"]!!.contains("/v1-configs"), "must call the control plane route")
         assertTrue(h["url"]!!.contains("screen=home"), "screen scoping travels as a query param")
+    }
+
+    @Test
+    fun sends_the_device_id_so_a_staged_rollout_can_bucket_this_install() = runTest {
+        // Without this header the server cannot place the device in a bucket, and it is
+        // EXCLUDED from any partial rollout rather than included — so an SDK that forgets to
+        // send it would make every staged rollout reach nobody, silently.
+        val seen = mutableListOf<Pair<String, String?>>()
+        service(capture = seen).fetchConfigs(screen = null)
+        assertEquals("device-under-test", seen.toMap()["X-RC-Device"])
     }
 
     @Test

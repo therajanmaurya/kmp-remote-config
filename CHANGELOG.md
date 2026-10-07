@@ -58,6 +58,40 @@
   default rather than throwing. Proven by mutation — renaming `template` to `templateId` fails both
   this test and the inlined-fixture drift check; restoring it passes.
 
+### Phase 05 — staged percentage rollout (migration 014)
+
+- `rollout_percentage` (default 100) and `cohort` on `config`. Defaulting to 100 matters: a 0
+  default would make every newly authored config invisible to everyone, which reads as "the
+  product is broken" rather than as deliberate staging.
+- **Bucketing is `hash(config_id:device_id) % 100 < percentage`, and the percentage is NEVER part
+  of the hash input.** Both failure modes this avoids look like product bugs rather than config
+  bugs, which is what makes them expensive: a per-fetch random draw re-rolls every poll so a
+  device flickers in and out continuously, and mixing the percentage into the hash reshuffles the
+  population so raising 10% to 20% DROPS some of the original 10% while adding others — with
+  totals that still look right.
+- Proven on the DEPLOYED function with real requests across 40 device ids: 0% reaches nobody, 100%
+  reaches everybody, 50% reaches roughly half, and raising 50% to 75% drops nobody (G-7c). Seven
+  further properties are asserted in `rollout_test.ts` against the shipped implementation,
+  including an even distribution — a clumping hash would make a 10% rollout reach 2% or 40% while
+  every stability property still held.
+- FNV-1a, not `crypto.subtle` (async, would push an await into the per-config filter) and not a
+  character-sum (clumps badly on UUIDs).
+- **A caller with no `X-RC-Device` is EXCLUDED from a partial rollout, never included.** The
+  alternative turns "10%" into "10% plus everyone we cannot identify", which is unbounded. 100%
+  still reaches them, because 100% means everyone.
+- **Caching adapts to the rollout.** With nothing staged the response carries no device identity
+  and stays shared at the edge for 60s. The moment any config is partially rolled out the response
+  becomes device-specific, so caching is dropped for those responses only — a shared cache would
+  hand one device's rollout membership to every other device behind that entry.
+- The SDK sends `X-RC-Device` on fetch; `deviceId` is nullable because a missing id must make a
+  rollout reach fewer devices, never more.
+- Dashboard: a rollout slider and cohort field on the authoring form, with a plain-language note
+  that raising only adds devices. **`rollout_percentage` and `cohort` are compared in the staged
+  diff** — omitting them would let an operator take a config from 10% to 100% with the dashboard
+  reporting nothing pending, the single most consequential edit in the product, invisible.
+- Rollout changes publish through the Phase 02 gate like any other edit: `publish()` snapshots with
+  `to_jsonb(c)`, so the new columns travel into every version with no change to the routine.
+
 ### Phase 04 — SDK settings, the kill switch, and in-app defaults (migration 013)
 
 - `app_settings` (one row per app, `app_id` as PRIMARY KEY) rides in the `/v1/configs` envelope:

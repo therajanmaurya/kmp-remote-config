@@ -454,3 +454,22 @@ fetch is least likely to land.
 **Bounds are CHECK constraints, not form validation.** 60..86400 for the fetch interval. The SDK
 additionally clamps to a compiled-in 60s floor, because it also talks to self-hosted planes and to
 rows written before these bounds existed.
+
+## Staged rollout (migration 014) — deployed 2026-10-07
+
+`rollout_percentage` (default 100) + `cohort` on `config`. Bucketing lives in the edge function
+(`rollout.ts`) because the device id arrives in a request header.
+
+Verified on prod across 40 device ids: 0% reaches nobody, 100% everybody, 50% roughly half, and
+raising 50% → 75% is purely additive.
+
+**The percentage is never part of the hash input.** `hash(config_id:device_id) % 100 < percentage`.
+Mixing it in would reshuffle the population on every change, so raising 10% to 20% would drop some
+of the original 10% — with totals that still look correct.
+
+**A caller with no `X-RC-Device` is excluded from a partial rollout.** Including unidentified
+callers would make "10%" mean "10% plus everyone we cannot identify".
+
+**Edge caching is dropped while any config is partially rolled out**, because the response becomes
+device-specific. A shared cache entry would hand one device's rollout membership to every other
+device behind it. Responses with nothing staged keep the 60s shared cache.
