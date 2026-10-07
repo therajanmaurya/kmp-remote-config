@@ -50,6 +50,12 @@ test("every icon rendered in the app is present in the subset", () => {
     for (const m of src.matchAll(/material-symbols-outlined[^>]*>\s*\{?\s*"?([a-z_]{3,})"?\s*\}?\s*</g)) used.add(m[1])
     // nav data: { icon: "rocket_launch", … }
     for (const m of src.matchAll(/\bicon:\s*"([a-z_]+)"/g)) used.add(m[1])
+    // A TERNARY inside the span — {done ? "check" : "content_copy"}. The two extractors above
+    // miss this shape entirely, and three icons added that way shipped as literal ligature
+    // text before this line existed. Every quoted token inside a material-symbols span counts.
+    for (const m of src.matchAll(/material-symbols-outlined[^>]*>\s*\{[^}]*\}/g)) {
+      for (const q of m[0].matchAll(/"([a-z_]{3,})"/g)) used.add(q[1])
+    }
   }
   // `name` is the Icon component's own prop, not a glyph.
   used.delete("name")

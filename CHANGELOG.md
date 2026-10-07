@@ -58,6 +58,32 @@
   default rather than throwing. Proven by mutation — renaming `template` to `templateId` fails both
   this test and the inlined-fixture drift check; restoring it passes.
 
+### Onboarding redesigned through Stitch (mockups 07–09)
+
+- The first onboarding build was hand-rolled — a bare form in whitespace — while every other
+  screen in this product is designed in the idea layer and generated. Corrected: three new states
+  (`onboarding_app`, `onboarding_platforms`, `onboarding_integrate`) authored into
+  `dashboard-remote-config/ui.yaml`, generated through the Stitch pipeline, and implemented.
+- These are the only states with NO sidebar and NO publish chrome: there is no app yet, so a
+  sidebar would offer navigation to nothing and the unpublished-changes pill would describe a
+  surface the operator has not reached.
+- Implemented from the mockups: the step rail with a "STEP n OF 3 · SETUP" eyebrow and a tick on
+  completed steps, a live slug preview, the "what you will need" aside, the Unified-KMP-id choice
+  card carrying a RECOMMENDED badge, the "Android only · optional" fingerprint chip, the amber
+  keytool caution, platform chips, and copy affordances on the id, each key and both code panels.
+- **Stitch returned 07 dark and 08/09 light.** Implemented in the LIGHT language, which is the
+  product's design system — three onboarding screens in a palette no other screen uses would be a
+  worse outcome than deviating from one generated image.
+- Stat cards on the final step carry real counts only. The mockup also showed edge latency and an
+  attestation badge; neither has a data source, and a fabricated figure beside a real one teaches
+  an operator to distrust both.
+
+**A blind spot found in my own guard test:** three icons added inside ternaries
+(`{done ? "check" : "content_copy"}`) were invisible to the icon-subset extractor and would have
+shipped as literal ligature text — the exact failure that test exists to prevent. The extractor
+now reads every quoted token inside a material-symbols span, and the fix is proven: removing
+`content_copy` from the subset fails the test.
+
 ### Onboarding — real app registration, KMP-first
 
 - **Demo seed removed from prod.** The dashboard no longer ships pre-seeded data; a new account

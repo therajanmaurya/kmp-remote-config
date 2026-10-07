@@ -4,36 +4,30 @@ import { useState } from "react"
 import Link from "next/link"
 import { onboardApp, type PlatformBinding } from "@/app/onboarding/actions"
 import { validateBundleId, validateCertDigest } from "@/lib/onboarding-validate"
+import { slugify } from "@/lib/slug"
+import { Rail } from "@/components/onboarding/Rail"
+import { Caution, ChoiceCard, CodePanel, CopyButton, Panel } from "@/components/onboarding/Parts"
 
 const PLATFORMS = [
-  { id: "android", label: "Android", hint: "com.example.app", needsCert: true },
-  { id: "ios", label: "iOS", hint: "com.example.App", needsCert: false },
-  { id: "desktop", label: "Desktop", hint: "com.example.app", needsCert: false },
-  { id: "web", label: "Web", hint: "com.example.app", needsCert: false },
-  { id: "wasm", label: "Wasm", hint: "com.example.app", needsCert: false },
+  { id: "android", label: "Android", needsCert: true },
+  { id: "ios", label: "iOS", needsCert: false },
+  { id: "desktop", label: "Desktop (JVM)", needsCert: false },
+  { id: "web", label: "Web", needsCert: false },
+  { id: "wasm", label: "Wasm", needsCert: false },
 ] as const
 
 type Draft = Record<string, { on: boolean; bundle_id: string; cert: string }>
+const EMPTY: Draft = Object.fromEntries(PLATFORMS.map((p) => [p.id, { on: false, bundle_id: "", cert: "" }]))
 
-/**
- * Kotlin Multiplatform shares ONE application id across every target — that is the ordinary
- * shape for this product, since the SDK exists to serve a KMP app. Per-platform ids are the
- * exception (a separate iOS bundle id, a different web package), so shared is the default and
- * the per-platform form is what you opt into.
- */
+/** KMP shares ONE application id across targets; per-platform is the exception, so shared leads. */
 type IdMode = "shared" | "per-platform"
 
-const EMPTY: Draft = Object.fromEntries(
-  PLATFORMS.map((p) => [p.id, { on: false, bundle_id: "", cert: "" }]),
-)
-
 /**
- * First-run registration.
+ * First-run registration, built from mockups 07–09.
  *
- * Three steps, because the three things an integrator needs are produced at different moments:
- * the app exists, the keys are bound to a package, and the snippet is something they paste.
- * Collapsing them into one form hides the key behind a success toast, which is the one thing
- * they came here to get.
+ * These are the only screens in the product with no sidebar and no publish chrome: there is no
+ * app yet, so a sidebar would offer navigation to nothing and the unpublished-changes pill
+ * would describe a surface the operator has not reached.
  */
 export function OnboardingWizard({ firstRun }: { firstRun: boolean }) {
   const [step, setStep] = useState<1 | 2 | 3>(1)
@@ -47,8 +41,8 @@ export function OnboardingWizard({ firstRun }: { firstRun: boolean }) {
   const [result, setResult] = useState<{ appId: string; keys: { environment: string; platform: string; key: string }[] } | null>(null)
 
   const chosen = PLATFORMS.filter((p) => draft[p.id].on)
+  const slug = slugify(name)
 
-  /** Per-field problems, shown inline rather than as one message at the end. */
   const problems: Record<string, string> = {}
   if (idMode === "shared") {
     if (sharedId.trim()) {
@@ -72,23 +66,24 @@ export function OnboardingWizard({ firstRun }: { firstRun: boolean }) {
       }
     }
   }
+
   const step2Ready =
     chosen.length > 0 &&
     Object.keys(problems).length === 0 &&
-    (idMode === "shared"
-      ? sharedId.trim().length > 0
-      : chosen.every((p) => draft[p.id].bundle_id.trim().length > 0))
+    (idMode === "shared" ? sharedId.trim().length > 0 : chosen.every((p) => draft[p.id].bundle_id.trim().length > 0))
+
+  const effectiveId = idMode === "shared"
+    ? sharedId.trim()
+    : (chosen[0] ? draft[chosen[0].id].bundle_id.trim() : "com.example.app")
 
   async function submit() {
     setBusy(true); setError(null)
-    // Multiple digests, comma or newline separated: Play App Signing means the upload key and
-    // the app-signing key are DIFFERENT certificates, and both must be accepted.
     const split = (s: string) => s.split(/[\n,]/).map((x) => x.trim()).filter(Boolean)
     const bindings: PlatformBinding[] = chosen.map((p) => ({
       platform: p.id,
       bundle_id: (idMode === "shared" ? sharedId : draft[p.id].bundle_id).trim(),
-      // The cert only ever binds the Android key — the other platforms have no equivalent,
-      // and attaching it to them would imply a check the server does not perform.
+      // The cert binds the Android key only — the other platforms have no equivalent, and
+      // attaching it would imply a check the server does not perform.
       cert_digests: p.needsCert ? split(idMode === "shared" ? sharedCert : draft[p.id].cert) : [],
     }))
     const res = await onboardApp({ display_name: name, bindings })
@@ -98,279 +93,363 @@ export function OnboardingWizard({ firstRun }: { firstRun: boolean }) {
   }
 
   return (
-    <div className="mx-auto max-w-2xl p-6">
-      <ol className="flex items-center gap-2 text-xs font-medium">
-        {["App", "Platforms & signing", "Integrate"].map((label, i) => {
-          const n = (i + 1) as 1 | 2 | 3
-          return (
-            <li key={label} className="flex items-center gap-2">
-              <span className={`flex h-6 w-6 items-center justify-center rounded-full font-mono ${
-                step >= n ? "bg-primary text-on_primary" : "bg-surface_variant text-secondary"
-              }`}>{n}</span>
-              <span className={step >= n ? "text-on_surface" : "text-secondary"}>{label}</span>
-              {n < 3 && <span className="mx-1 h-px w-6 bg-outline_variant" />}
-            </li>
-          )
-        })}
-      </ol>
+    <div className="min-h-screen bg-surface_variant">
+      <header className="border-b border-outline_variant bg-surface">
+        <div className="mx-auto flex max-w-4xl items-center gap-2.5 px-6 py-3.5">
+          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary font-mono text-xs font-bold text-on_primary">rc</span>
+          <span className="font-headline text-base font-bold tracking-tight">rconfig</span>
+        </div>
+      </header>
 
-      {step === 1 && (
-        <section className="mt-8">
-          <h1 className="font-display text-2xl font-bold tracking-tight">
-            {firstRun ? "Register your first app" : "Register an app"}
-          </h1>
-          <p className="mt-2 text-sm text-secondary">
-            An app is one product. Its parameters, configs and keys are scoped to it, and nothing
-            is shared with your other apps.
-          </p>
-          <label className="mt-6 block text-sm font-medium">
-            Name
-            <input
-              data-testid="onboard-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="rconfig Sample"
-              className="mt-1 w-full rounded-md border border-outline px-3 py-2 text-sm"
-            />
-          </label>
-          <button
-            data-testid="onboard-next-1"
-            disabled={!name.trim()}
-            onClick={() => setStep(2)}
-            className="mt-6 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-on_primary disabled:opacity-50"
-          >
-            Continue
-          </button>
-        </section>
-      )}
+      <main className="mx-auto max-w-3xl px-6 py-10">
+        <Rail step={step} />
 
-      {step === 2 && (
-        <section className="mt-8">
-          <h1 className="font-display text-2xl font-bold tracking-tight">Platforms &amp; signing</h1>
-          <p className="mt-2 text-sm text-secondary">
-            A publishable key ships inside your binary, so it is not a secret. What protects it is
-            the binding below: the server checks the package and, on Android, the signing
-            certificate on every request.
-          </p>
-
-          <div className="mt-6 rounded-lg border border-outline_variant p-4">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-secondary">Application id</p>
-            <div className="mt-2 flex flex-col gap-2">
-              <label className="flex items-start gap-2 text-sm">
+        {step === 1 && (
+          <div className="mx-auto mt-8 max-w-xl space-y-4">
+            <Panel
+              title={firstRun ? "Register your first app" : "Register an app"}
+              subtitle="An app is one product. Its parameters, configs and keys are scoped to it."
+            >
+              <label className="block text-sm font-medium">
+                Name
                 <input
-                  type="radio"
-                  name="idmode"
-                  data-testid="onboard-idmode-shared"
-                  className="mt-1"
-                  checked={idMode === "shared"}
-                  onChange={() => setIdMode("shared")}
+                  data-testid="onboard-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="rconfig Sample"
+                  className="mt-1.5 w-full rounded-lg border border-outline px-3 py-2.5 text-sm"
                 />
-                <span>
-                  <strong className="font-medium">Kotlin Multiplatform — one id for every target</strong>
-                  <span className="mt-0.5 block text-xs text-secondary">
-                    A KMP app normally declares a single <code className="font-mono">applicationId</code> and
-                    reuses it across Android, iOS, desktop and web. One id, one value to keep in step.
-                  </span>
-                </span>
               </label>
-              <label className="flex items-start gap-2 text-sm">
-                <input
-                  type="radio"
-                  name="idmode"
-                  data-testid="onboard-idmode-per"
-                  className="mt-1"
-                  checked={idMode === "per-platform"}
-                  onChange={() => setIdMode("per-platform")}
-                />
-                <span>
-                  <strong className="font-medium">A different id per platform</strong>
-                  <span className="mt-0.5 block text-xs text-secondary">
-                    For a separate iOS bundle id, or a web package that differs from the app.
+
+              {/* The slug is shown live because it ends up in key prefixes and logs, and is
+                  fixed at creation — seeing it before committing is cheaper than renaming. */}
+              <div className="mt-3 flex items-center gap-2 text-xs">
+                <span className="text-secondary">Slug preview</span>
+                <code className="rounded bg-surface_variant px-1.5 py-0.5 font-mono text-on_surface_variant">
+                  {slug || "—"}
+                </code>
+                {slug && (
+                  <span className="ml-auto inline-flex items-center gap-1 text-tertiary">
+                    <span className="material-symbols-outlined text-[14px]" aria-hidden>check_circle</span>
+                    looks good
                   </span>
-                </span>
-              </label>
+                )}
+              </div>
+
+              <div className="mt-5 flex justify-end">
+                <button
+                  data-testid="onboard-next-1"
+                  disabled={!name.trim()}
+                  onClick={() => setStep(2)}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-on_primary disabled:opacity-50"
+                >
+                  Continue
+                  <span className="material-symbols-outlined text-[16px]" aria-hidden>chevron_right</span>
+                </button>
+              </div>
+            </Panel>
+
+            <div className="flex gap-3 rounded-xl border border-outline_variant bg-surface px-5 py-4">
+              <span className="material-symbols-outlined text-[18px] text-primary" aria-hidden>info</span>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-secondary">What you will need</p>
+                <p className="mt-1 text-xs leading-relaxed text-on_surface_variant">
+                  Your application id, for example <code className="font-mono">com.mobilebytesensei.rconfig</code>,
+                  and on Android the SHA-256 fingerprint of your signing certificate. Both can be
+                  added or changed later — this aside exists so nobody abandons the flow hunting
+                  for a fingerprint.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {step === 2 && (
+          <div className="mt-8 space-y-4">
+            <div>
+              <h1 className="font-display text-2xl font-bold tracking-tight">Platforms and signing</h1>
+              <p className="mt-1 text-sm text-secondary">
+                Configure how your Kotlin Multiplatform targets identify themselves. A publishable
+                key ships inside your binary, so what protects it is the binding below — not secrecy.
+              </p>
             </div>
 
+            <Panel
+              title="Application id architecture"
+              subtitle="KMP is the default because this SDK exists to serve a Kotlin Multiplatform app."
+            >
+              <div className="grid gap-3 sm:grid-cols-2">
+                <ChoiceCard
+                  testId="onboard-idmode-shared"
+                  selected={idMode === "shared"}
+                  onSelect={() => setIdMode("shared")}
+                  title="Unified KMP id"
+                  body="One id for every target. A KMP app declares a single applicationId and reuses it across Android, iOS, desktop and web."
+                  recommended
+                />
+                <ChoiceCard
+                  testId="onboard-idmode-per"
+                  selected={idMode === "per-platform"}
+                  onSelect={() => setIdMode("per-platform")}
+                  title="Per-platform ids"
+                  body="For a separate iOS bundle id, or a web package that differs from the app."
+                />
+              </div>
+            </Panel>
+
             {idMode === "shared" && (
-              <div className="mt-4 space-y-3 border-t border-outline_variant pt-4">
-                <label className="block text-sm">
-                  Shared application id
-                  <input
-                    data-testid="onboard-shared-bundle"
-                    value={sharedId}
-                    onChange={(e) => setSharedId(e.target.value)}
-                    placeholder="com.mobilebytesensei.rconfig"
-                    className="mt-1 w-full rounded-md border border-outline px-3 py-2 font-mono text-sm"
-                  />
+              <Panel title="Shared application id" subtitle="This identity scopes every publishable key issued below.">
+                <label className="block text-sm font-medium">
+                  Application id
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <input
+                      data-testid="onboard-shared-bundle"
+                      value={sharedId}
+                      onChange={(e) => setSharedId(e.target.value)}
+                      placeholder="com.mobilebytesensei.rconfig"
+                      className="w-full rounded-lg border border-outline px-3 py-2.5 font-mono text-sm"
+                    />
+                    {sharedId.trim() && <CopyButton value={sharedId.trim()} />}
+                  </div>
                   {problems["shared-bundle"] && (
                     <span role="alert" className="mt-1 block text-xs text-error">{problems["shared-bundle"]}</span>
                   )}
                 </label>
-                <label className="block text-sm">
-                  SHA-256 certificate fingerprints <span className="text-secondary">(Android only)</span>
+
+                <label className="mt-4 block text-sm font-medium">
+                  <span className="flex flex-wrap items-center gap-2">
+                    SHA-256 fingerprints
+                    <span className="rounded bg-tertiary_container px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wider text-on_tertiary_container">
+                      Android only · optional
+                    </span>
+                  </span>
                   <textarea
                     data-testid="onboard-shared-cert"
                     value={sharedCert}
                     onChange={(e) => setSharedCert(e.target.value)}
                     rows={2}
-                    placeholder="AB:CD:… (one per line)"
-                    className="mt-1 w-full rounded-md border border-outline px-3 py-2 font-mono text-xs"
+                    placeholder="AB:CD:EF:… (one per line)"
+                    className="mt-1.5 w-full rounded-lg border border-outline px-3 py-2.5 font-mono text-xs"
                   />
-                  <span className="mt-1 block text-xs text-secondary">
-                    Optional, and addable later. Add BOTH your upload key and the Play app-signing
-                    key — Play re-signs your bundle, so the fingerprint you see locally is usually
-                    not the one that ships. <code className="font-mono">keytool -list -v</code> prints both; use the
-                    SHA256 line, not SHA1. Only the Android key is bound to it.
-                  </span>
                   {problems["shared-cert"] && (
                     <span role="alert" className="mt-1 block text-xs text-error">{problems["shared-cert"]}</span>
                   )}
                 </label>
-              </div>
+
+                <div className="mt-3">
+                  <Caution>
+                    <strong className="font-semibold">keytool prints SHA1 first.</strong> Play App
+                    Signing reports SHA-256, so a SHA-1 fingerprint can never match and the only
+                    symptom is a bare <code className="font-mono">cert_mismatch</code> on device. Add
+                    both your upload key and the Play app-signing key — Play re-signs your bundle,
+                    so the fingerprint you see locally is usually not the one that ships.
+                  </Caution>
+                </div>
+              </Panel>
             )}
-          </div>
 
-          <p className="mt-6 text-[11px] font-semibold uppercase tracking-wide text-secondary">Targets</p>
-          <div className="mt-2 space-y-3">
-            {PLATFORMS.map((p) => {
-              const d = draft[p.id]
-              return (
-                <div key={p.id} className="rounded-lg border border-outline_variant p-4">
-                  <label className="flex items-center gap-2 text-sm font-medium">
-                    <input
-                      type="checkbox"
-                      data-testid={`onboard-platform-${p.id}`}
-                      checked={d.on}
-                      onChange={(e) => setDraft({ ...draft, [p.id]: { ...d, on: e.target.checked } })}
-                    />
-                    {p.label}
-                    {d.on && idMode === "shared" && sharedId.trim() && (
-                      <span className="ml-auto font-mono text-xs text-secondary">{sharedId.trim()}</span>
-                    )}
-                  </label>
+            <Panel
+              title="Active target platforms"
+              subtitle="Each selected target is issued its own live and test key."
+              aside={
+                <span className="rounded-full bg-surface_variant px-2 py-1 font-mono text-[10px] font-semibold text-secondary">
+                  {chosen.length} selected
+                </span>
+              }
+            >
+              <div className="flex flex-wrap gap-2">
+                {PLATFORMS.map((p) => {
+                  const d = draft[p.id]
+                  return (
+                    <label
+                      key={p.id}
+                      className={`inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
+                        d.on ? "border-primary bg-primary_container/40 font-medium" : "border-outline_variant hover:border-outline"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        data-testid={`onboard-platform-${p.id}`}
+                        checked={d.on}
+                        onChange={(e) => setDraft({ ...draft, [p.id]: { ...d, on: e.target.checked } })}
+                        className="sr-only"
+                      />
+                      <span className={`material-symbols-outlined text-[16px] ${d.on ? "text-primary" : "text-outline"}`} aria-hidden>
+                        {d.on ? "check_circle" : "radio_button_unchecked"}
+                      </span>
+                      {p.label}
+                    </label>
+                  )
+                })}
+              </div>
 
-                  {/* Per-platform fields appear ONLY in per-platform mode. In shared mode the
-                      id is already shown above, and repeating an editable copy here would
-                      invite the two to drift. */}
-                  {d.on && idMode === "per-platform" && (
-                    <div className="mt-3 space-y-3 pl-6">
-                      <label className="block text-sm">
-                        Application id
+              {/* In shared mode the SAME id is echoed against every chosen target. That
+                  repetition IS the screen's point: one value, visibly applying everywhere. */}
+              {idMode === "shared" && chosen.length > 0 && sharedId.trim() && (
+                <ul className="mt-4 divide-y divide-outline_variant rounded-lg border border-outline_variant">
+                  {chosen.map((p) => (
+                    <li key={p.id} className="flex items-center justify-between px-3 py-2 text-xs">
+                      <span className="font-medium">{p.label}</span>
+                      <code className="font-mono text-secondary">{sharedId.trim()}</code>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {idMode === "per-platform" && chosen.length > 0 && (
+                <div className="mt-4 space-y-3">
+                  {chosen.map((p) => {
+                    const d = draft[p.id]
+                    return (
+                      <div key={p.id} className="rounded-lg border border-outline_variant p-3">
+                        <p className="text-xs font-semibold">{p.label}</p>
                         <input
                           data-testid={`onboard-bundle-${p.id}`}
                           value={d.bundle_id}
                           onChange={(e) => setDraft({ ...draft, [p.id]: { ...d, bundle_id: e.target.value } })}
-                          placeholder={p.hint}
-                          className="mt-1 w-full rounded-md border border-outline px-3 py-2 font-mono text-sm"
+                          placeholder="com.example.app"
+                          className="mt-1.5 w-full rounded-lg border border-outline px-3 py-2 font-mono text-sm"
                         />
                         {problems[`${p.id}-bundle`] && (
                           <span role="alert" className="mt-1 block text-xs text-error">{problems[`${p.id}-bundle`]}</span>
                         )}
-                      </label>
-
-                      {p.needsCert && (
-                        <label className="block text-sm">
-                          SHA-256 certificate fingerprints
-                          <textarea
-                            data-testid={`onboard-cert-${p.id}`}
-                            value={d.cert}
-                            onChange={(e) => setDraft({ ...draft, [p.id]: { ...d, cert: e.target.value } })}
-                            rows={2}
-                            placeholder="AB:CD:… (one per line)"
-                            className="mt-1 w-full rounded-md border border-outline px-3 py-2 font-mono text-xs"
-                          />
-                          {problems[`${p.id}-cert`] && (
-                            <span role="alert" className="mt-1 block text-xs text-error">{problems[`${p.id}-cert`]}</span>
-                          )}
-                        </label>
-                      )}
-                    </div>
-                  )}
+                        {p.needsCert && (
+                          <>
+                            <textarea
+                              data-testid={`onboard-cert-${p.id}`}
+                              value={d.cert}
+                              onChange={(e) => setDraft({ ...draft, [p.id]: { ...d, cert: e.target.value } })}
+                              rows={2}
+                              placeholder="SHA-256 fingerprints, one per line (optional)"
+                              className="mt-2 w-full rounded-lg border border-outline px-3 py-2 font-mono text-xs"
+                            />
+                            {problems[`${p.id}-cert`] && (
+                              <span role="alert" className="mt-1 block text-xs text-error">{problems[`${p.id}-cert`]}</span>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
-              )
-            })}
+              )}
+            </Panel>
+
+            {error && (
+              <p role="alert" className="rounded-lg border border-error/30 bg-error_container px-4 py-3 text-sm text-on_error_container">
+                {error}
+              </p>
+            )}
+
+            <div className="flex items-center justify-between">
+              <button onClick={() => setStep(1)} className="inline-flex items-center gap-1 text-sm text-secondary hover:text-on_surface">
+                <span className="material-symbols-outlined rotate-180 text-[16px]" aria-hidden>chevron_right</span>
+                Back
+              </button>
+              <button
+                data-testid="onboard-create"
+                disabled={!step2Ready || busy}
+                onClick={submit}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-on_primary disabled:opacity-50"
+              >
+                {busy ? "Registering…" : "Continue to integration"}
+                <span className="material-symbols-outlined text-[16px]" aria-hidden>chevron_right</span>
+              </button>
+            </div>
           </div>
+        )}
 
-          {error && <p role="alert" className="mt-4 rounded-md bg-error_container px-3 py-2 text-sm text-on_error_container">{error}</p>}
+        {step === 3 && result && (
+          <div className="mt-8 space-y-4">
+            <div>
+              <h1 className="font-display text-2xl font-bold tracking-tight">Add the SDK and initialise</h1>
+              <p className="mt-1 text-sm text-secondary">
+                Connect your client applications using the issued keys and the initialisation block below.
+              </p>
+            </div>
 
-          <div className="mt-6 flex gap-3">
-            <button onClick={() => setStep(1)} className="text-sm text-secondary hover:underline">Back</button>
-            <button
-              data-testid="onboard-create"
-              disabled={!step2Ready || busy}
-              onClick={submit}
-              className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-on_primary disabled:opacity-50"
-            >
-              {busy ? "Registering…" : "Register app"}
-            </button>
+            {/* Real counts only. The mockup also showed edge latency and an attestation badge;
+                neither has a data source, and a fabricated figure beside a real one teaches an
+                operator to distrust both. */}
+            <div className="grid gap-3 sm:grid-cols-3">
+              {[
+                { label: "Targets", value: String(chosen.length) },
+                { label: "Keys issued", value: String(result.keys.length) },
+                { label: "Attestation", value: "test off · live preferred" },
+              ].map((s) => (
+                <div key={s.label} className="rounded-xl border border-outline_variant bg-surface px-4 py-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-secondary">{s.label}</p>
+                  <p className="mt-1 font-display text-lg font-bold tracking-tight">{s.value}</p>
+                </div>
+              ))}
+            </div>
+
+            <Panel title="Your keys" subtitle="Scoped to this app and bound to the id above.">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="text-[10px] uppercase tracking-wide text-secondary">
+                    <tr>
+                      <th className="pb-2 font-semibold">Platform</th>
+                      <th className="pb-2 font-semibold">Environment</th>
+                      <th className="pb-2 font-semibold">Publishable key</th>
+                      <th className="pb-2" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-outline_variant">
+                    {result.keys.map((k) => (
+                      <tr key={k.key} data-testid="onboard-key">
+                        <td className="py-2.5">{k.platform}</td>
+                        <td className="py-2.5">
+                          <span className={`rounded px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase ${
+                            k.environment === "test"
+                              ? "bg-warning_container text-on_warning_container"
+                              : "bg-tertiary_container text-on_tertiary_container"
+                          }`}>{k.environment}</span>
+                        </td>
+                        <td className="py-2.5 font-mono text-xs">{k.key}</td>
+                        <td className="py-2.5 text-right"><CopyButton value={k.key} /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="mt-4">
+                <Caution>
+                  The <strong className="font-semibold">test</strong> key skips attestation so a
+                  debug build can use it — Play Integrity rejects debug and sideloaded builds, so a
+                  developer could otherwise never run their own app. Use the{" "}
+                  <strong className="font-semibold">live</strong> key for your release build.
+                </Caution>
+              </div>
+            </Panel>
+
+            <div className="grid gap-3 lg:grid-cols-2">
+              <CodePanel
+                caption="build.gradle.kts"
+                code={`sourceSets {\n    commonMain.dependencies {\n        implementation("io.github.mobilebytelabs:cmp-remote-config:5.0.0")\n        implementation("io.github.mobilebytelabs:cmp-remote-config-compose:5.0.0")\n    }\n}`}
+              />
+              <CodePanel
+                caption="App.kt · remoteConfig"
+                code={`remoteConfig {\n    publishableKey = "${result.keys.find((k) => k.environment === "test")?.key ?? "rck_test_…"}"\n    packageName = "${effectiveId}"\n    platform = "${chosen[0]?.id ?? "android"}"\n    appVersion = BuildConfig.VERSION_NAME\n    httpClient = yourKtorClient\n\n    defaults = remoteConfigDefaults {\n        boolean("welcome_banner_enabled", false)\n    }\n}`}
+              />
+            </div>
+
+            <div className="flex justify-end">
+              {/* A Link, not a programmatic push: this is a navigation, so it stays
+                  middle-clickable and keyboard-reachable. */}
+              <Link
+                data-testid="onboard-finish"
+                href={`/apps/${result.appId}/parameters`}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-on_primary"
+              >
+                Complete setup and go to the dashboard
+                <span className="material-symbols-outlined text-[16px]" aria-hidden>chevron_right</span>
+              </Link>
+            </div>
           </div>
-        </section>
-      )}
-
-      {step === 3 && result && (
-        <section className="mt-8">
-          <h1 className="font-display text-2xl font-bold tracking-tight">Integrate</h1>
-          <p className="mt-2 text-sm text-secondary">
-            Your keys are issued. The <strong>test</strong> key skips attestation so a debug build
-            can use it; the <strong>live</strong> key is for your release build.
-          </p>
-
-          <div className="mt-5 overflow-hidden rounded-lg border border-outline_variant">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-surface_variant/50 text-[11px] uppercase text-secondary">
-                <tr><th className="px-4 py-2">Platform</th><th className="px-4 py-2">Env</th><th className="px-4 py-2">Key</th></tr>
-              </thead>
-              <tbody className="divide-y divide-outline_variant">
-                {result.keys.map((k) => (
-                  <tr key={k.key} data-testid="onboard-key">
-                    <td className="px-4 py-2">{k.platform}</td>
-                    <td className="px-4 py-2">
-                      <span className={`rounded px-1.5 py-0.5 font-mono text-[11px] ${
-                        k.environment === "test" ? "bg-warning_container text-on_warning_container" : "bg-tertiary_container text-on_tertiary_container"
-                      }`}>{k.environment}</span>
-                    </td>
-                    <td className="px-4 py-2 font-mono text-xs">{k.key}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <h2 className="mt-6 text-sm font-semibold">Add the SDK</h2>
-          <pre className="mt-2 overflow-x-auto rounded-md bg-code_background p-4 font-mono text-xs text-code_on_background">
-{`// build.gradle.kts
-implementation("io.github.mobilebytelabs:cmp-remote-config:5.0.0")
-implementation("io.github.mobilebytelabs:cmp-remote-config-compose:5.0.0")`}
-          </pre>
-
-          <h2 className="mt-5 text-sm font-semibold">Initialise</h2>
-          <pre className="mt-2 overflow-x-auto rounded-md bg-code_background p-4 font-mono text-xs text-code_on_background">
-{`remoteConfig {
-    publishableKey = "${result.keys.find((k) => k.environment === "test")?.key ?? "rck_test_…"}"
-    packageName = "${idMode === "shared" ? sharedId.trim() : (chosen[0] ? draft[chosen[0].id].bundle_id.trim() : "com.example.app")}"
-    platform = "${chosen[0]?.id ?? "android"}"
-    appVersion = BuildConfig.VERSION_NAME
-    httpClient = yourKtorClient
-    defaults = remoteConfigDefaults {
-        boolean("welcome_banner_enabled", false)
-    }
-}`}
-          </pre>
-
-          <div className="mt-6 flex gap-3">
-            {/* A Link, not router.push: this is a NAVIGATION, so it should be reachable by
-                middle-click and keyboard, and it survives the client router failing to act on
-                a programmatic push — which is exactly what happened here. */}
-            <Link
-              data-testid="onboard-finish"
-              href={`/apps/${result.appId}/parameters`}
-              className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-on_primary"
-            >
-              Go to the dashboard
-            </Link>
-          </div>
-        </section>
-      )}
+        )}
+      </main>
     </div>
   )
 }
