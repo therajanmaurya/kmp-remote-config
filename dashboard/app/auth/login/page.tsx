@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase-browser"
+import { startGoogleSignIn } from "@/lib/sign-in"
 
 /**
  * Clear stale Supabase auth artifacts before starting a fresh OAuth flow.
@@ -83,15 +84,17 @@ export default function LoginPage() {
 
   async function signIn() {
     setBusy(true)
-    const supabase = createClient()
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
-    })
-    if (error) {
-      setError(error.message)
+    setError(null)
+    const res = await startGoogleSignIn(createClient, window.location.origin)
+    if (!res.ok) {
+      // Re-enable on EVERY failure. The previous version only reset `busy` for a returned
+      // error, so a THROWN one — which is what a bundle missing its Supabase config
+      // produces — left the button disabled on "Redirecting to Google…" permanently.
+      setError(res.error ?? "Sign-in failed to start.")
       setBusy(false)
     }
+    // On success the browser is already navigating to Google; leaving the button disabled is
+    // correct there, because a second click would start a competing PKCE flow.
   }
 
   return (

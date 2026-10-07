@@ -9,8 +9,9 @@
     "test": "jest",
     "e2e": "playwright test",
     "pages:build": "next-on-pages",
-    "pages:deploy": "next-on-pages && wrangler pages deploy .vercel/output/static --project-name=rconfig --branch=release",
-    "e2e:local": "RCONFIG_LOCAL_E2E=1 playwright test"
+    "pages:deploy": "bash scripts/deploy.sh",
+    "e2e:local": "RCONFIG_LOCAL_E2E=1 playwright test",
+    "pages:deploy:raw": "next-on-pages && wrangler pages deploy .vercel/output/static --project-name=rconfig --branch=release"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.0",

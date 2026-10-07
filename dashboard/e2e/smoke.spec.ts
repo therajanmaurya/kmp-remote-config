@@ -89,3 +89,26 @@ test.describe("production smoke", () => {
     expect(sc).toMatch(/code-verifier=;[\s\S]*?Max-Age=0/)
   })
 })
+
+test("clicking sign-in starts the OAuth flow instead of sticking", async ({ page }) => {
+  // The shipped regression: a bundle built without NEXT_PUBLIC_SUPABASE_* threw inside
+  // createClient(), the click handler had no catch, and the button sat disabled on
+  // "Redirecting to Google…" forever with no error. Every route still returned 200, so
+  // nothing else in this suite noticed.
+  await page.goto("/auth/login")
+  await page.getByTestId("sign-in-google").click()
+
+  // Either outcome is acceptable; being STUCK is not. A visible error means the page told
+  // the operator what went wrong, which is the behaviour that was missing.
+  await page.waitForTimeout(5000)
+  const onGoogle = /accounts\.google\.com/.test(page.url())
+  if (onGoogle) return
+
+  const btn = page.getByTestId("sign-in-google")
+  const stillBusy = await btn.isDisabled().catch(() => false)
+  const alert = await page.getByRole("alert").count()
+  expect(
+    !stillBusy || alert > 0,
+    "sign-in neither navigated, nor re-enabled the button, nor showed an error",
+  ).toBeTruthy()
+})

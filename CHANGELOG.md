@@ -58,6 +58,35 @@
   default rather than throwing. Proven by mutation — renaming `template` to `templateId` fails both
   this test and the inlined-fixture drift check; restoring it passes.
 
+### Fixed — sign-in was dead on every deploy I made
+
+- **Clicking "Continue with Google" stuck on "Redirecting to Google…" forever.** Two independent
+  faults, both mine:
+  1. `npm run pages:deploy` built LOCALLY without `NEXT_PUBLIC_SUPABASE_URL` / `_ANON_KEY`. Those
+     are inlined by Next at BUILD time, so every bundle I shipped had no Supabase config and
+     `createClient()` threw on page load. Nothing failed: `next build` exited 0, the upload
+     succeeded, every route returned 200.
+  2. The click handler had no try/catch. It only reset `busy` for a RETURNED error, so a THROWN
+     one left the single control on the page permanently disabled with nothing on screen.
+- Sign-in logic extracted to `lib/sign-in.ts` as a pure function taking the client factory, so the
+  control flow is testable in node — the failure was about control flow, not rendering, and a test
+  needing jsdom would not have been written. 5 unit tests: thrown error, non-Error throw, returned
+  OAuth error, rejected promise, and the success path asserting the callback targets THIS origin.
+- `__tests__/bundle-env.test.ts` asserts the ARTIFACT, not the environment — "did the values reach
+  the bundle", not "were they set in some shell". It also asserts the service-role key is NOT
+  inlined, the counterpart risk to fixing this carelessly.
+- `scripts/deploy.sh` is now the only deploy path (`pages:deploy` routes through it): resolves the
+  public config from the vault, builds, RUNS THE BUNDLE GATE, and refuses to upload if it fails.
+  Env resolution cannot be a step someone remembers.
+- Two bugs found while writing that script, both the same footgun as the `supabase-connect.sh`
+  one: `exit` inside a function called via `$(...)` runs in a SUBSHELL and cannot stop the script,
+  so a failed resolve silently produced an empty variable; and `secrets-get.sh` is CWD-dependent —
+  the identical call succeeds from the framework root and fails from the dashboard directory, the
+  same thing `/idea-feature-stitch` shipped `stitch-key-resolve.sh` to work around.
+- Verified in a browser: the click now navigates to `accounts.google.com`. e2e guard added to the
+  production smoke suite (6/6 green) asserting sign-in either navigates, re-enables, or shows an
+  error — never sticks.
+
 ### SDK — the nine config-template designs
 
 - The `config-templates` mockups (9 screens) are now per-template Compose bodies. Before this the
