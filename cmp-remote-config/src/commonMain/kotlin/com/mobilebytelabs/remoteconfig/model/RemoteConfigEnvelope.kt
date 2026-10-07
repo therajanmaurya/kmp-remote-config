@@ -31,6 +31,11 @@ data class RemoteConfigEnvelope(
      * sends no `parameters` key keeps working.
      */
     val parameters: JsonObject = JsonObject(emptyMap()),
+    /**
+     * SDK behaviour for this app. Defaulted so a server that predates the settings table
+     * leaves the SDK on its compiled-in behaviour rather than switched off.
+     */
+    val settings: SdkSettings = SdkSettings(),
 )
 
 /**

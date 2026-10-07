@@ -107,15 +107,30 @@ Deno.serve(async (req) => {
     // Parameters resolve against the SAME audience tuple the configs just filtered on, so a
     // response is internally consistent: a caller cannot receive a config targeted at Android
     // beta alongside a parameter value resolved for someone else.
+    // Settings ride in the same envelope the transport already fetches, so honouring them
+    // costs the client no extra request. Read alongside the parameters rather than before:
+    // neither gates the other, and serialising two awaits would add a round trip to every
+    // config fetch for no benefit.
+    const settingsQuery = db.from("app_settings")
+      .select("enabled, fetch_interval_seconds, cache_ttl_seconds, max_retries, backoff_base_seconds")
+      .eq("app_id", id.appId)
+      .maybeSingle();
+
     const parameters = await resolveParameters(db, id.appId, {
       platform: ctx.platform,
       screen: ctx.screen,
       app_version: ctx.appVersion,
     });
 
+    // An app with no settings row falls back to the SDK's own defaults rather than to
+    // "disabled". A missing row must never read as a kill switch — that would black out an
+    // app nobody had touched.
+    const { data: settingsRow } = await settingsQuery;
+    const settings = settingsRow ?? undefined;
+
     // No device identity participates in this response, so it is shared across every device
     // in the same audience tuple — which is what keeps it effectively free at the edge.
-    return jsonOk({ schema_version: 1, configs, parameters }, 60);
+    return jsonOk({ schema_version: 1, configs, parameters, ...(settings ? { settings } : {}) }, 60);
   } catch (e) {
     return failSoft("unhandled", e);
   }

@@ -434,3 +434,23 @@ a parameter lookup failing must not take down the configs response beside it.
 
 **`parameter_value` has no `app_id`.** It inherits the tenant boundary through its parameter, which
 is what stops a crafted `parameter_id` from attaching a value to another tenant's parameter.
+
+## SDK settings + kill switch (migration 013) — deployed 2026-10-07
+
+`app_settings`, one row per app, emitted in the `/v1/configs` envelope.
+
+Verified on prod: the envelope carries settings, a newly created app has an enabled row (trigger),
+and `fetch_interval_seconds = 1` is refused.
+
+**A missing settings row means "SDK defaults", never "disabled".** Both the edge function and the
+client treat an absent row or block that way. The alternative reads as a kill switch for an app
+nobody touched. A trigger creates the row on app creation and existing apps were backfilled, so the
+state should not arise — the fallback is there because it must never be the wrong one.
+
+**The kill switch is honoured from the client's CACHE**, not only from a successful fetch. An
+operator flips it when the SDK is misbehaving or the server is struggling, which is the moment a
+fetch is least likely to land.
+
+**Bounds are CHECK constraints, not form validation.** 60..86400 for the fetch interval. The SDK
+additionally clamps to a compiled-in 60s floor, because it also talks to self-hosted planes and to
+rows written before these bounds existed.

@@ -58,6 +58,43 @@
   default rather than throwing. Proven by mutation — renaming `template` to `templateId` fails both
   this test and the inlined-fixture drift check; restoring it passes.
 
+### Phase 04 — SDK settings, the kill switch, and in-app defaults (migration 013)
+
+- `app_settings` (one row per app, `app_id` as PRIMARY KEY) rides in the `/v1/configs` envelope:
+  `enabled`, `fetch_interval_seconds`, `cache_ttl_seconds`, `max_retries`, `backoff_base_seconds`.
+  The fetch interval was previously a compile-time constant in the consumer app, so a server under
+  load could not ask clients to back off and a misbehaving integration could not be disabled
+  without shipping a release through two review queues.
+- **The kill switch works OFFLINE.** `acceptSettings()` restores cached settings at startup and
+  `shouldFetch()` checks `enabled` FIRST. An operator flips the switch precisely when the SDK is
+  misbehaving or the server is struggling — the moment a fetch is least likely to succeed — so a
+  switch the client could only learn by fetching would be decoration.
+- **Bounds live in the DATABASE, not the dashboard form.** `fetch_interval_seconds` is CHECKed to
+  60..86400. A 1-second row would reach every device and then could not be withdrawn faster than
+  the interval it just set. The ceiling matters too: a 90-day interval is indistinguishable from
+  the SDK being off, except that it looks like a working configuration. An API caller bypasses the
+  form; it cannot bypass a CHECK.
+- **The client keeps its own floor** (`MIN_FETCH_INTERVAL_SECONDS = 60`) on top of those bounds,
+  because this SDK also talks to self-hosted planes and to rows written before the CHECK existed.
+  A compiled-in floor cannot be withdrawn by the thing it protects against.
+- Every app gets a settings row from a trigger on creation, and existing apps were backfilled. An
+  absent row would force the edge function to decide whether "no settings" means defaults or means
+  disabled — ambiguity that ends with a kill switch read as "off" for an app nobody touched. Both
+  the function and the SDK treat a missing row/block as "SDK defaults", never as disabled.
+- **Three-layer precedence: `server > cache > bundled default`**, each covering a distinct moment.
+  Bundled is all that exists on a first launch with no network — without it a brand-new install
+  shows nothing, strictly worse than having no remote config, since the app was built assuming the
+  values are there. Cache covers every later offline launch; falling past it would revert a user to
+  shipping-day behaviour the moment wifi dropped. A key the server stops sending falls back rather
+  than stranding a value the dashboard no longer has.
+- `remoteConfigDefaults { boolean(...); long(...); string(...) }` — a typed builder, so the first
+  thing an integrator writes does not require kotlinx-serialization's DSL, and the declared type
+  stays visible where a mismatch with the dashboard is cheapest to notice.
+- A first launch fetches immediately: with no last-fetch timestamp the interval has nothing to
+  measure from, and waiting an hour would make a cold install useless.
+- Verified live (14/14): settings ride in the envelope, a new app's row exists and is enabled, and
+  a 1-second interval is refused by the database.
+
 ### Phase 03 — typed parameters + named conditions (migration 012)
 
 - The half of Firebase Remote Config this product never had. Values previously existed only as a

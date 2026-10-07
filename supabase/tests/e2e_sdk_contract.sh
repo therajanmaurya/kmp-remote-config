@@ -193,6 +193,22 @@ curl -s -o "$WORK/body2.json" "$FUNC" \
 has_default=$(grep -c '"max_uploads":5' "$WORK/body2.json" || true)
 check "a parameter with no matching condition serves its default (G-5)" 1 "$has_default"
 
+# ---- G-6: settings ride in the envelope, and the kill switch is visible ---------
+has_settings=$(grep -c '"settings"' "$WORK/body2.json" || true)
+check "the envelope carries the app's SDK settings (G-6)" 1 "$has_settings"
+
+# The settings row is created by a trigger when the app is created, so an operator never has
+# to find an app in an "unknown settings" state.
+enabled=$(curl -s -K "$WORK/curlrc" "$REST/app_settings?app_id=eq.$APP_ID&select=enabled,fetch_interval_seconds" )
+case "$enabled" in *'"enabled":true'*) e=yes ;; *) e=no ;; esac
+check "creating an app created its settings row, enabled (G-6)" yes "$e"
+
+# G-6c — the DB refuses an interval that could not be withdrawn faster than it takes effect.
+code=$(curl -s -K "$WORK/curlrc" -o /dev/null -w '%{http_code}' \
+  -X PATCH "$REST/app_settings?app_id=eq.$APP_ID" -d '{"fetch_interval_seconds":1}')
+case "$code" in 4*) r=refused ;; *) r="accepted($code)" ;; esac
+check "a 1-second fetch interval is refused by the database (G-6c)" refused "$r"
+
 # ---- parse the LIVE body with the shipped model ---------------------------------
 ( cd "$REPO" && ./gradlew --quiet :cmp-remote-config:jvmTest \
     --tests '*LiveWireParseTest*' -Drc.live.body="$WORK/body.json" --rerun-tasks ) > "$WORK/parse.log" 2>&1
