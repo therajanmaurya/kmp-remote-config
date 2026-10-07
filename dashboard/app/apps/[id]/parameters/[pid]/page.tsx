@@ -2,7 +2,7 @@ export const runtime = "edge"
 
 import Link from "next/link"
 import { requireUser } from "@/lib/require-user"
-import { OverrideEditor } from "@/components/ParameterControls"
+import { OverrideEditor, RemoveOverrideButton } from "@/components/ParameterControls"
 import { LiveEvaluator } from "@/components/LiveEvaluator"
 import { describePredicate, type Predicate } from "@/lib/predicate"
 import { Code } from "@/components/Surface"
@@ -94,6 +94,7 @@ export default async function ParameterEditPage({
                 <p className="mt-0.5 font-mono text-xs text-secondary">{predicateOf(o.condition_id)}</p>
               </div>
               <Code>{JSON.stringify(o.value)}</Code>
+              <RemoveOverrideButton appId={params.id} overrideId={o.id} />
             </li>
           ))}
 

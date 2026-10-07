@@ -47,6 +47,30 @@ function GoogleIcon() {
   )
 }
 
+/** What the product actually does, in the words the dashboard itself uses. */
+const CAPABILITIES = [
+  {
+    icon: "tune",
+    title: "Typed parameters",
+    body: "Booleans, numbers, strings and JSON with declared types and in-app defaults.",
+  },
+  {
+    icon: "rule",
+    title: "Named conditions",
+    body: "Describe an audience once and reuse it. Edit the rule, every parameter follows.",
+  },
+  {
+    icon: "rocket_launch",
+    title: "Staged rollout",
+    body: "Ship to a stable slice. Raising the percentage only ever adds devices.",
+  },
+  {
+    icon: "history",
+    title: "Publish & rollback",
+    body: "Nothing reaches a device until you publish. Every revision is immutable.",
+  },
+]
+
 export default function LoginPage() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -71,26 +95,89 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center p-6">
-      <div className="w-full max-w-sm space-y-6">
-        <div>
-          <h1 className="text-2xl font-semibold">rconfig</h1>
-          <p className="mt-1 text-sm text-secondary">Remote config for your apps.</p>
+    <main className="flex min-h-screen flex-col lg:flex-row">
+      {/* Brand half. Hidden below lg rather than stacked: on a phone it would push the one
+          control anyone came here for below the fold. */}
+      <section className="hidden flex-1 flex-col justify-between bg-primary p-12 text-on_primary lg:flex">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-on_primary/15 font-mono text-sm font-bold tracking-tight">
+            rc
+          </div>
+          <span className="font-headline text-xl font-bold tracking-tight">rconfig</span>
         </div>
-        {error && (
-          <p role="alert" className="rounded border border-red-300 bg-red-50 p-3 text-sm text-red-800">
-            {error}
+
+        <div className="max-w-md">
+          <h1 className="font-display text-4xl font-bold leading-tight tracking-tight">
+            Change your app&apos;s behaviour without shipping a release.
+          </h1>
+          <p className="mt-4 text-on_primary/80">
+            A remote-config control plane for Kotlin Multiplatform — typed parameters, audience
+            targeting and staged rollout, with a publish step so nothing reaches a device by
+            accident.
           </p>
-        )}
-        <button
-          onClick={signIn}
-          disabled={busy}
-          className="flex w-full items-center justify-center gap-3 rounded border px-4 py-2.5 text-sm font-medium hover:bg-surface_variant disabled:opacity-60"
-        >
-          <GoogleIcon />
-          {busy ? "Redirecting…" : "Continue with Google"}
-        </button>
-      </div>
+
+          <ul className="mt-10 space-y-5">
+            {CAPABILITIES.map((c) => (
+              <li key={c.title} className="flex gap-3">
+                <span className="material-symbols-outlined mt-0.5 text-[20px] text-on_primary/70" aria-hidden>
+                  {c.icon}
+                </span>
+                <div>
+                  <p className="text-sm font-semibold">{c.title}</p>
+                  <p className="mt-0.5 text-sm text-on_primary/70">{c.body}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <p className="font-mono text-xs text-on_primary/50">
+          io.github.mobilebytelabs:cmp-remote-config
+        </p>
+      </section>
+
+      {/* Sign-in half. */}
+      <section className="flex flex-1 items-center justify-center bg-surface p-6">
+        <div className="w-full max-w-sm">
+          <div className="flex items-center gap-2.5 lg:hidden">
+            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary font-mono text-sm font-bold text-on_primary">
+              rc
+            </div>
+            <span className="font-headline text-lg font-bold tracking-tight">rconfig</span>
+          </div>
+
+          <h2 className="mt-6 font-display text-2xl font-bold tracking-tight lg:mt-0">Sign in</h2>
+          <p className="mt-1.5 text-sm text-secondary">
+            Use the Google account your team&apos;s apps are registered under.
+          </p>
+
+          {error && (
+            <p
+              role="alert"
+              className="mt-5 rounded-md border border-error/30 bg-error_container px-3 py-2.5 text-sm text-on_error_container"
+            >
+              {error}
+            </p>
+          )}
+
+          <button
+            onClick={signIn}
+            disabled={busy}
+            data-testid="sign-in-google"
+            className="mt-6 flex w-full items-center justify-center gap-3 rounded-md border border-outline bg-surface px-4 py-2.5 text-sm font-semibold shadow-sm transition-colors hover:bg-surface_variant disabled:opacity-60"
+          >
+            <GoogleIcon />
+            {busy ? "Redirecting to Google…" : "Continue with Google"}
+          </button>
+
+          {/* Google is the only provider wired up. Saying so prevents a hunt for an email
+              field that does not exist. */}
+          <p className="mt-6 text-xs leading-relaxed text-secondary">
+            Google is currently the only sign-in method. Your account is created on first sign-in,
+            and you will only see apps you own or have been added to.
+          </p>
+        </div>
+      </section>
     </main>
   )
 }

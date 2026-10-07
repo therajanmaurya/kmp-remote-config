@@ -5,6 +5,7 @@ export const runtime = "edge"
 
 import Link from "next/link"
 import { requireUser } from "@/lib/require-user"
+import { Hero } from "@/components/Surface"
 import { keyBadge } from "@/lib/key-display"
 import { IssueKeyButton, RevokeKeyButton } from "@/components/KeyRow"
 
@@ -26,10 +27,13 @@ export default async function KeysPage({ params }: { params: { id: string } }) {
     .order("created_at", { ascending: false })
 
   return (
-    <main className="mx-auto max-w-4xl p-6">
-      <Link href={`/apps/${params.id}`} className="text-sm text-secondary hover:underline">
-        ← app
-      </Link>
+    <div className="p-6">
+      <Hero
+        eyebrow="Control plane · Keys"
+        title="Publishable keys"
+        subtitle="One key per app and platform. A key identifies the caller; it is not a secret."
+      />
+
       <div className="mt-2 flex items-center justify-between">
         <h1 className="text-xl font-semibold">Keys</h1>
         <IssueKeyButton appId={params.id} />
@@ -85,6 +89,6 @@ export default async function KeysPage({ params }: { params: { id: string } }) {
           </table>
         </div>
       )}
-    </main>
+    </div>
   )
 }

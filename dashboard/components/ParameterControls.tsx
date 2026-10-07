@@ -144,32 +144,10 @@ export function OverrideEditor({
 
   return (
     <div className="mt-4">
-      <h2 className="text-sm font-medium text-on_surface_variant">Conditional overrides</h2>
+      <h2 className="font-headline text-sm font-semibold">Add a conditional override</h2>
       <p className="mt-1 text-xs text-secondary">
-        Checked in priority order, lowest first. The first condition that matches wins; if none
-        match, the default above is served.
+        Attach a condition and the value it should serve. Lower priority is checked first.
       </p>
-
-      {overrides.length > 0 && (
-        <ol className="mt-3 divide-y rounded border">
-          {overrides.map((o) => (
-            <li key={o.id} data-testid="override-row" className="flex items-center gap-3 p-3 text-sm">
-              <span className="w-8 font-mono text-xs text-secondary">{o.priority}</span>
-              <span className="flex-1">
-                if <strong>{nameOf(o.condition_id)}</strong> then{" "}
-                <code className="rounded bg-surface_variant px-1.5 py-0.5 font-mono text-xs">
-                  {JSON.stringify(o.value)}
-                </code>
-              </span>
-              <button
-                onClick={async () => { await removeOverride(appId, o.id); router.refresh() }}
-                className="text-xs text-secondary hover:text-error hover:underline">
-                Remove
-              </button>
-            </li>
-          ))}
-        </ol>
-      )}
 
       {conditions.length === 0 ? (
         <p className="mt-3 rounded border border-dashed p-4 text-sm text-secondary">
@@ -215,5 +193,19 @@ export function OverrideEditor({
         </form>
       )}
     </div>
+  )
+}
+
+export function RemoveOverrideButton({ appId, overrideId }: { appId: string; overrideId: string }) {
+  const router = useRouter()
+  const [busy, setBusy] = useState(false)
+  return (
+    <button
+      disabled={busy}
+      onClick={async () => { setBusy(true); await removeOverride(appId, overrideId); router.refresh() }}
+      className="text-xs text-secondary hover:text-error hover:underline disabled:opacity-50"
+    >
+      {busy ? "Removing…" : "Remove"}
+    </button>
   )
 }

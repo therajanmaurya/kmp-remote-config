@@ -5,22 +5,72 @@ export const runtime = "edge"
 
 import Link from "next/link"
 import { requireUser } from "@/lib/require-user"
+import { Empty, Hero, Panel, StatCards } from "@/components/Surface"
 import { ShareControl } from "@/components/ShareTemplateDialog"
 
 export default async function TemplatesPage({ params }: { params: { id: string } }) {
   const { supabase } = await requireUser()
 
-  // This app's OWN templates only — builtins are global and listed on the authoring screen.
-  const { data: templates } = await supabase
-    .from("template")
-    .select("id, display_name, description, renders_ui, visibility, shared_at, author_label, forked_from")
-    .eq("app_id", params.id)
-    .order("created_at", { ascending: false })
+  const [{ data: templates }, { data: builtins }] = await Promise.all([
+    // This app's OWN templates.
+    supabase.from("template")
+      .select("id, display_name, description, renders_ui, visibility, shared_at, author_label, forked_from")
+      .eq("app_id", params.id)
+      .order("created_at", { ascending: false }),
+    // The global catalogue. `is_builtin` rows have no app_id, which is exactly why they were
+    // missing from a page filtered by it.
+    supabase.from("template")
+      .select("id, display_name, description, renders_ui, allowed_displays")
+      .eq("is_builtin", true)
+      .order("id"),
+  ])
+
+  const catalogue = builtins ?? []
+  const rendering = catalogue.filter((b) => b.renders_ui).length
 
   return (
-    <main className="mx-auto max-w-4xl p-6">
-      <Link href={`/apps/${params.id}`} className="text-sm text-secondary hover:underline">← app</Link>
-      <div className="mt-2 flex items-center justify-between">
+    <div className="p-6">
+      <Hero
+        eyebrow="Control plane · Templates"
+        title="Templates"
+        subtitle="The shape a config can take. Builtins ship with the product; custom templates are yours."
+      />
+
+      <StatCards
+        stats={[
+          { label: "Builtin templates", value: String(catalogue.length), hint: "always available" },
+          { label: "Rendering surfaces", value: String(rendering), hint: "draw UI on device" },
+          { label: "Value-only", value: String(catalogue.length - rendering), hint: "read through getters" },
+          { label: "Your templates", value: String(templates?.length ?? 0) },
+        ]}
+      />
+
+      <Panel title={`Builtin catalogue (${catalogue.length})`}>
+        {catalogue.length === 0 ? (
+          <Empty>The builtin catalogue did not load.</Empty>
+        ) : (
+          <ul className="grid gap-px bg-outline_variant sm:grid-cols-2 lg:grid-cols-3">
+            {catalogue.map((b) => (
+              <li key={b.id} data-testid="builtin-template" className="bg-surface p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-sm font-semibold">{b.display_name}</p>
+                  <span className={`flex-shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold ${
+                    b.renders_ui
+                      ? "bg-tertiary_container text-on_tertiary_container"
+                      : "bg-secondary_container text-on_secondary_container"
+                  }`}>
+                    {b.renders_ui ? "renders" : "value"}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs leading-relaxed text-secondary">{b.description}</p>
+                <p className="mt-2 font-mono text-[11px] text-secondary">{b.id}</p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Panel>
+
+      <div className="mt-8 flex items-center justify-between">
         <h1 className="text-xl font-semibold">Custom templates</h1>
         <div className="flex items-center gap-3">
           <Link href="/community" className="text-sm text-on_surface_variant hover:underline">Browse community</Link>
@@ -68,6 +118,6 @@ export default async function TemplatesPage({ params }: { params: { id: string }
           ))}
         </ul>
       )}
-    </main>
+    </div>
   )
 }

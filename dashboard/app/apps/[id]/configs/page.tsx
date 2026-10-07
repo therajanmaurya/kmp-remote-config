@@ -5,6 +5,7 @@ export const runtime = "edge"
 
 import Link from "next/link"
 import { requireUser } from "@/lib/require-user"
+import { Hero } from "@/components/Surface"
 import { DuplicateButton, EnableSwitch } from "@/components/ConfigRowControls"
 
 export default async function ConfigListPage({ params }: { params: { id: string } }) {
@@ -24,8 +25,13 @@ export default async function ConfigListPage({ params }: { params: { id: string 
   }
 
   return (
-    <main className="mx-auto max-w-5xl p-6">
-      <Link href={`/apps/${params.id}`} className="text-sm text-secondary hover:underline">← app</Link>
+    <div className="p-6">
+      <Hero
+        eyebrow="Control plane · Configs"
+        title="Configs"
+        subtitle="Server-driven UI overlays — dialogs, banners and sheets your app renders without a release."
+      />
+
       <div className="mt-2 flex items-center justify-between">
         <h1 className="text-xl font-semibold">Configs</h1>
         <Link href={`/apps/${params.id}/configs/new`}
@@ -62,6 +68,6 @@ export default async function ConfigListPage({ params }: { params: { id: string 
           </table>
         </div>
       )}
-    </main>
+    </div>
   )
 }

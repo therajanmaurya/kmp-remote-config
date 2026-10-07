@@ -40,6 +40,7 @@ export function AppShell({
     { href: `/apps/${appId}/templates`, icon: "dashboard_customize", label: "Templates" },
     { href: `/apps/${appId}/keys`, icon: "key", label: "Keys" },
     { href: `/apps/${appId}/preview`, icon: "preview", label: "Preview" },
+    { href: `/apps/${appId}/publish`, icon: "rocket_launch", label: "Publish", badge: stagedCount || null },
     { href: `/apps/${appId}/history`, icon: "history", label: "Activity" },
   ]
 
