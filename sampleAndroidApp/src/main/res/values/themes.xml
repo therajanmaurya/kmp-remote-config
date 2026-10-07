@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- NoActionBar: the sample draws its own Compose scaffolding, and a platform action bar
+         above it would be chrome the shared App() does not know about. -->
+    <style name="Theme.RconfigSample" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

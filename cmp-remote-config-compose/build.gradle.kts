@@ -204,5 +204,19 @@ mavenPublishing {
     }
 }
 
-// Library Runtime Observability — auto-generate CmpMetadata.kt for cmp-observe hooks
-apply(from = "$rootDir/cmp-observe-metadata.gradle.kts")
+// Library Runtime Observability — DELIBERATELY NOT APPLIED HERE.
+//
+// The generator derives its Kotlin package from the module's own sources, and this module's
+// sources share `com.mobilebytelabs.remoteconfig` with cmp-remote-config. Applying it in both
+// emitted `com.mobilebytelabs.remoteconfig.CmpMetadata` TWICE, and an Android app depending on
+// both artefacts — the normal case — failed to dex:
+//
+//     Type com.mobilebytelabs.remoteconfig.CmpMetadata is defined multiple times
+//
+// Nothing caught it because no Android consumer used both until `:sampleAndroidApp` existed.
+// This module never referenced the generated object (zero usages), so not generating it is
+// both the smallest fix and the right one: cmp-remote-config reports the version for the pair,
+// which is what the `X-RC-SDK-Version` header carries anyway.
+//
+// If this module ever needs its own metadata, the generator must disambiguate the package per
+// module rather than this line being restored.

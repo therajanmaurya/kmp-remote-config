@@ -13,7 +13,7 @@ import org.koin.dsl.module
  * ViewModel, and `RemoteConfigHost` resolves it from Koin — so an app that only READS values
  * can skip all of this, which is why the two samples exist.
  */
-fun sampleModule(
+internal fun sampleModule(
     publishableKey: String,
     platform: String,
     appVersion: String,
@@ -33,5 +33,23 @@ fun sampleModule(
         action(ActionType.URL) { value, _ -> println("sample: open url → $value") }
         action(ActionType.ACKNOWLEDGE) { _, _ -> println("sample: acknowledged") }
         action(ActionType.SUBMIT) { value, _ -> println("sample: submitted score $value") }
+    }
+}
+
+/**
+ * Start Koin once per process — `initKoin()` in the wizard's layout.
+ *
+ * Only the RENDERER needs this: `RemoteConfigHost` resolves its ViewModel from Koin. An app
+ * that reads values and draws nothing can skip it entirely, which is what `:sample-headless`
+ * demonstrates.
+ */
+internal fun initSampleKoin(
+    publishableKey: String,
+    platform: String,
+    appVersion: String,
+    http: io.ktor.client.HttpClient,
+) {
+    org.koin.core.context.startKoin {
+        modules(sampleModule(publishableKey, platform, appVersion, http))
     }
 }
