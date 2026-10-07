@@ -19,11 +19,13 @@ export default async function AppListPage() {
     .select("id, slug, display_name, platforms, config(count)")
     .order("created_at", { ascending: false })
 
-  // With exactly one app, the list is a page that always says the same thing and is never the
-  // reason anyone opened the dashboard. Go straight to its control plane — the operator
-  // reported landing on a chooser with one choice, which is a click that only ever delays them.
-  // Two or more apps and the list is doing real work, so it stays.
-  if (apps?.length === 1) redirect(`/apps/${apps[0].id}/parameters`)
+  // Nothing registered yet: send them to onboarding rather than an empty list whose only
+  // control is a button. The list is a navigation surface, and there is nothing to navigate.
+  if (!apps?.length) redirect("/onboarding")
+
+  // With exactly one app the list always says the same thing and is never the reason anyone
+  // opened the dashboard. Two or more and it is doing real work, so it stays.
+  if (apps.length === 1) redirect(`/apps/${apps[0].id}/parameters`)
 
   return (
     <main className="mx-auto max-w-3xl p-6">

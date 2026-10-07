@@ -58,6 +58,35 @@
   default rather than throwing. Proven by mutation — renaming `template` to `templateId` fails both
   this test and the inlined-fixture drift check; restoring it passes.
 
+### Onboarding — real app registration, KMP-first
+
+- **Demo seed removed from prod.** The dashboard no longer ships pre-seeded data; a new account
+  registers its own app.
+- **`/onboarding`**: three steps, because the three things an integrator needs arrive at different
+  moments — the app exists, the keys are bound to a package, and the snippet is something they
+  paste. An account with no apps lands here rather than on an empty list whose only control is a
+  button.
+- **Kotlin Multiplatform is the DEFAULT id mode**: one `applicationId` shared across every target,
+  which is the ordinary shape for a KMP app. Per-platform ids are the opt-in. Verified end to end:
+  3 targets, 6 keys, one shared `com.mobilebytesensei.rconfig`, and cert digests bound ONLY to the
+  Android keys — the other platforms have no equivalent, and attaching it would imply a check the
+  server does not perform.
+- **SHA-256, plural, and SHA-1 refused by name.** `keytool` prints SHA1 first, so it is the value
+  most likely pasted; Play App Signing reports SHA-256, so a SHA-1 here can never match and the
+  only symptom is a bare `cert_mismatch` on device. Plural because Play re-signs — the upload key
+  and the app-signing key are different certificates and both must be accepted. 20 unit tests.
+- Validation runs BEFORE any write: a half-registered app is worse than none, and failing midway
+  would leave an app row with no keys and a form now reporting a duplicate slug.
+
+**Three bugs found by walking it in a browser:**
+- `revalidatePath("/", "layout")` in the action remounted the tree it was called from, so the
+  client's `await` resolved to `undefined` and the wizard died on `res.ok` having just succeeded.
+- The finish control used `router.push` and silently did nothing. It is a NAVIGATION, so it is now
+  a `Link` — reachable by middle-click and keyboard, and immune to the client router not acting.
+- The insert's `RETURNING` intermittently came back empty through RLS, leaving a success screen
+  with no keys on it. The action already holds every key from `generate_publishable_key`, so there
+  was nothing to re-read.
+
 ### Roborazzi goldens — and the two rendering bugs they immediately found
 
 - 10 golden images for the nine designed template bodies (`src/jvmTest/roborazzi/`). JVM-only:
