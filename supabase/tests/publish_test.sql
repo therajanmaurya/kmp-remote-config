@@ -97,8 +97,17 @@ BEGIN
     RAISE EXCEPTION 'FAIL: rollback content differs from the version it restored';
   END IF;
 
+  -- An app carrying published versions must still be DELETABLE. The append-only trigger
+  -- fires on the FK cascade, and without its parent-gone exception it aborts the whole
+  -- delete — making every app with history permanently undeletable. Found by the live e2e,
+  -- whose sentinel cleanup silently stopped working.
   RESET ROLE;
-  RAISE NOTICE 'PASS: publish gate, snapshot immutability and rollback-as-new-version hold';
+  DELETE FROM public.app a WHERE a.id = app;
+  IF EXISTS (SELECT 1 FROM public.config_version WHERE app_id = app) THEN
+    RAISE EXCEPTION 'FAIL: versions survived their app being deleted';
+  END IF;
+
+  RAISE NOTICE 'PASS: publish gate, snapshot immutability, rollback-as-new-version and app deletion hold';
 END $$;
 
 ROLLBACK;

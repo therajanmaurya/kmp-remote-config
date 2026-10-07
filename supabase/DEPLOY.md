@@ -392,3 +392,30 @@ One operator has signed in; **no app, key or config has ever been created throug
 The 15 builtin templates are seed data from migration 004, not operator output. So the dashboard
 being deployed and reachable is not evidence that an operator can drive it end to end — that is
 still unproven, and is what the epic's G-11 walkthrough exists to establish.
+
+## Publish gate (migration 011) — deployed 2026-10-07
+
+`config` is the draft surface; `/v1/configs` serves the latest `config_version` snapshot.
+
+Verified on prod via `supabase/tests/e2e_sdk_contract.sh` (9/9) and `publish_test.sql`:
+
+| Gate | Asserted |
+|---|---|
+| G-3 | an unpublished app serves nothing; an unpublished edit does not reach devices; Publish makes it live |
+| G-4a | after `rollback_to(1)` devices receive v1's payload again |
+| G-4b | the undone version is still in history (3 rows) |
+| G-10 | 0 anon-callable routines |
+
+### Two consequences to know before operating this
+
+**An app that has never published serves nothing.** Fail-closed: falling back to drafts would
+reinstate the gap this migration closes, silently, on exactly the apps nobody has reviewed. Any
+app that existed before 011 must be published once before its configs reach devices again.
+
+**Rollback is forward-only.** `rollback_to(v)` publishes a NEW version equal to v. Nothing is
+deleted or rewritten — `config_version` is append-only, enforced by trigger rather than by REVOKE
+because a privilege does not bind the table owner or `service_role`.
+
+The ONE exception to append-only is the FK cascade when an app is deleted: without it the guard
+aborts the cascade and makes every app with history permanently undeletable. Retaining the audit
+trail of an app that no longer exists is a leak, not integrity.

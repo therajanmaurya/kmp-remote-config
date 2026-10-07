@@ -45,7 +45,9 @@ export default defineConfig({
   // globalSetup seeds users + apps in the LOCAL stack, so it only applies in local mode.
   ...(LOCAL ? { globalSetup: "./e2e/global-setup.ts" } : {}),
   // Without the local stack the signed-in walkthroughs cannot run; only the smoke suite can.
-  testIgnore: LOCAL ? [] : ["**/apps.spec.ts", "**/keys.spec.ts", "**/authoring.spec.ts", "**/templates.spec.ts"],
+  testIgnore: LOCAL
+    ? []
+    : ["**/apps.spec.ts", "**/keys.spec.ts", "**/authoring.spec.ts", "**/templates.spec.ts", "**/publish.spec.ts"],
   timeout: 45_000,
   expect: { timeout: 10_000 },
   fullyParallel: false,

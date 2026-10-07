@@ -154,6 +154,19 @@ check "an unpublished edit does NOT reach devices (G-3)" "e2e sentinel" "$(title
 curl -s -K "$WORK/curlrc" -X POST "$REST/rpc/publish" -d "{\"p_app\":\"$APP_ID\"}" -o "$WORK/pub2.json" >/dev/null 2>&1
 check "after Publish the new value IS served (G-3)" "UNPUBLISHED EDIT" "$(title_now)"
 
+# ---- G-4: rollback is a new version, and devices follow it ----------------------
+# publish_test.sql already proves the TABLE semantics (3 rows, v2 intact, v3 == v1). This
+# asserts the half that matters to a user: after a rollback the DEVICE gets the old payload
+# back. A rollback that is correct in the database and invisible on devices is not a rollback.
+rb=$(curl -s -K "$WORK/curlrc" -X POST "$REST/rpc/rollback_to" \
+      -d "{\"p_app\":\"$APP_ID\",\"p_version\":1}")
+check "rollback_to(1) returns a NEW version number" 3 "$rb"
+check "devices receive v1's payload again after rollback (G-4a)" "e2e sentinel" "$(title_now)"
+
+n_versions=$(curl -s -K "$WORK/curlrc" \
+  "$REST/config_version?app_id=eq.$APP_ID&select=version" | grep -o '"version"' | wc -l | tr -d ' ')
+check "the undone version is still in history (G-4b)" 3 "$n_versions"
+
 # ---- parse the LIVE body with the shipped model ---------------------------------
 ( cd "$REPO" && ./gradlew --quiet :cmp-remote-config:jvmTest \
     --tests '*LiveWireParseTest*' -Drc.live.body="$WORK/body.json" --rerun-tasks ) > "$WORK/parse.log" 2>&1

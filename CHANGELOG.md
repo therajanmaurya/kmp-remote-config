@@ -58,6 +58,36 @@
   default rather than throwing. Proven by mutation — renaming `template` to `templateId` fails both
   this test and the inlined-fixture drift check; restoring it passes.
 
+### Phase 02 — the publish gate (migration 011)
+
+- **Every edit used to be live on the next fetch.** `config` rows are now the DRAFT surface;
+  `/v1/configs` serves the latest immutable snapshot from the new `config_version` table. Proven
+  against the DEPLOYED function: an unpublished edit does not reach devices, and does after Publish.
+- `publish(app)` snapshots the enabled drafts; `rollback_to(app, v)` publishes a NEW version
+  carrying v's content and never deletes. Verified live: devices receive v1's payload again after
+  a rollback, and the undone version stays in history.
+- Snapshots EMBED the template contract (`renders_ui`, `requires_ack`, `min_sdk_version`), so
+  editing a template cannot silently change what already-published configs do on devices. Schedule
+  bounds are evaluated at FETCH time, so a config published today with a start of next Tuesday
+  begins serving on Tuesday with no second publish.
+- Immutability is a TRIGGER, not a REVOKE: a revoked privilege does not bind the table owner or
+  `service_role`, which the edge functions use. UPDATE and DELETE are both refused, proven while
+  running as superuser.
+- **An app with published versions must stay deletable.** The cascade from `app` fires the
+  append-only trigger, which aborted the whole DELETE and made every app with history permanently
+  undeletable. The trigger now permits the cascade when the parent app is already gone. Found by
+  the live e2e, whose sentinel cleanup silently stopped working.
+- `service_role` may publish without a user session — not an escalation, since it already bypasses
+  RLS and lives only in the vault; the alternative is every automated caller minting a user JWT.
+- An app that has never published serves NOTHING. Fail-closed on purpose: falling back to drafts
+  would reinstate this exact gap, silently, on the apps nobody has reviewed yet.
+- G-10 holds: 0 anon-callable routines, explicit ACLs, no empty grantee.
+- Dashboard: `/apps/[id]/publish` (staged diff, old → new, new/modified/removed) and
+  `/apps/[id]/history` (versions, Live badge, forward-only rollback), with a persistent
+  unpublished-changes pill in new `[id]/layout.tsx` chrome — on every app route, because a warning
+  you only see once you go looking warns nobody. Deployed; interactive spec written but NOT run
+  (see below).
+
 ### Phase 01 · T6 — 5.0.0 prepared, NOT published
 
 - `gradle.properties#kmpremoteconfig.version` → `5.0.0`; release notes at `docs/releases/5.0.0.md`

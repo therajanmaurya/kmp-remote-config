@@ -43,6 +43,15 @@ LANGUAGE plpgsql
 SET search_path = public, pg_temp
 AS $$
 BEGIN
+    -- One exception, and it is not a loophole: when the parent app is being deleted the FK
+    -- cascade removes these rows, and Postgres has already deleted the app row by the time
+    -- this fires. Without this, the append-only guard makes an app UNDELETABLE — the
+    -- cascade raises and the whole DELETE rolls back. Retaining the audit trail of an app
+    -- that no longer exists is not integrity, it is a leak, and `app` declares ON DELETE
+    -- CASCADE precisely because the versions are meaningless without their app.
+    IF TG_OP = 'DELETE' AND NOT EXISTS (SELECT 1 FROM public.app WHERE id = OLD.app_id) THEN
+        RETURN OLD;
+    END IF;
     RAISE EXCEPTION 'config_version is append-only: % on version % refused (use rollback_to to undo a publish)',
         TG_OP, COALESCE(OLD.version, -1);
 END;
