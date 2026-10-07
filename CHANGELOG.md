@@ -58,6 +58,32 @@
   default rather than throwing. Proven by mutation — renaming `template` to `templateId` fails both
   this test and the inlined-fixture drift check; restoring it passes.
 
+### Phase 06 (partial) — device preview + the staged-diff regression
+
+- **Fixed: a rollout change staged nothing.** `getPublishStatus` compared template/payload/display/
+  priority but not `rollout_percentage` or `cohort`, so an operator could take a config from 10% to
+  100% — the most consequential single edit in this product — and the dashboard would report no
+  pending changes. Exactly the class of silent change Phase 02 exists to prevent, reintroduced by
+  Phase 05. Now locked by `__tests__/publish-status.test.ts`: reverting the fix fails precisely the
+  rollout and cohort assertions and nothing else.
+- **Device preview** at `/apps/[id]/preview` — "what would this device receive right now", which
+  GOAL.md names the single most useful operator tool and which did not exist. The audience lives in
+  the query string, so a preview is a LINK: an operator reporting "iOS 4.2 users see nothing" can
+  paste a URL that reproduces it rather than describing which boxes they filled in. The device id
+  is editable because it decides rollout membership.
+- **The preview IMPORTS the edge function's own `audience.ts` and `rollout.ts`** rather than
+  reimplementing them, and reads the published snapshot exactly as `/v1/configs` does. A preview
+  built as a second evaluator drifts silently, and an operator trusting a wrong preview is worse off
+  than one with no preview at all.
+- **G-8b proven against the real deployment**: `preview-parity.test.ts` runs the dashboard's
+  resolver against prod and compares with what the deployed function serves for the same audience —
+  byte-identical configs and parameters. Wired into `e2e_sdk_contract.sh`, which requires the run to
+  REPORT a pass: jest exits 0 for a skipped test as readily as a passing one, so the exit code alone
+  could not tell them apart, and a parity check that silently skips is a gate that reports green
+  while asserting nothing.
+- An empty preview says WHY it is empty — never published, or published but nothing in vN matches
+  this audience. An empty result with no explanation reads as a broken page.
+
 ### Phase 05 — staged percentage rollout (migration 014)
 
 - `rollout_percentage` (default 100) and `cohort` on `config`. Defaulting to 100 matters: a 0

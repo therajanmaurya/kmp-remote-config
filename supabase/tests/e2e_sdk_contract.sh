@@ -249,6 +249,35 @@ check "raising 50% to 75% is purely additive (G-7c)" 0 "$missing"
 # Restore full rollout so the later assertions see the config.
 rolled 100 >/dev/null
 
+# ---- G-8b: the dashboard preview agrees with the deployed function --------------
+# Runs the dashboard's own resolver against this sentinel app and compares it to what the
+# edge function just served. `resolve-preview.ts` IMPORTS the edge function's modules rather
+# than reimplementing them, so this proves the construction holds against the real deployment.
+if [ -d "$REPO/dashboard/node_modules" ]; then
+  ( cd "$REPO/dashboard" \
+    && RCONFIG_PARITY_APP_ID="$APP_ID" \
+       RCONFIG_PARITY_SUPABASE_URL="https://$PROJECT_REF.supabase.co" \
+       RCONFIG_PARITY_SERVICE_KEY="$(tr -d '\r\n' < "$WORK/srk")" \
+       RCONFIG_PARITY_PUBLISHABLE_KEY="$SENTINEL_KEY" \
+       RCONFIG_PARITY_PACKAGE="$SENTINEL_BUNDLE" \
+       npx jest __tests__/preview-parity.test.ts ) > "$WORK/parity.log" 2>&1
+  pr=$?
+  # jest exits 0 for a SKIPPED test as readily as a passing one, so the exit code alone cannot
+  # tell the two apart — and a parity check that silently skips is exactly the kind of gate
+  # that reports green while asserting nothing. Require the run to report a pass.
+  if grep -qE "Tests:.*[1-9][0-9]* passed" "$WORK/parity.log" && [ "$pr" -eq 0 ]; then
+    verdict=passed
+  elif grep -q "skipped" "$WORK/parity.log"; then
+    verdict="SKIPPED (env not threaded through)"
+  else
+    verdict="failed"
+  fi
+  check "the dashboard preview matches the deployed function (G-8b)" passed "$verdict"
+  [ "$verdict" != "passed" ] && grep -E "✕|Expected|Received|●|Tests:" "$WORK/parity.log" | head -6
+else
+  echo "  (skipped G-8b parity: dashboard/node_modules absent — run npm ci in dashboard/)"
+fi
+
 # ---- parse the LIVE body with the shipped model ---------------------------------
 ( cd "$REPO" && ./gradlew --quiet :cmp-remote-config:jvmTest \
     --tests '*LiveWireParseTest*' -Drc.live.body="$WORK/body.json" --rerun-tasks ) > "$WORK/parse.log" 2>&1
