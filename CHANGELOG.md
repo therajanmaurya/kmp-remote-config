@@ -58,7 +58,31 @@
   default rather than throwing. Proven by mutation — renaming `template` to `templateId` fails both
   this test and the inlined-fixture drift check; restoring it passes.
 
-### Phase 06 (partial) — device preview + the staged-diff regression
+### Phase 06 — parameters + conditions UI (T1), device preview (T2)
+
+- **Parameters UI** at `/apps/[id]/parameters`: typed list with the default and override count,
+  plus a per-parameter editor for conditional overrides shown as an ordered "if CONDITION then
+  VALUE" list. Three phases of server capability had no screens at all.
+- **Conditions UI** at `/apps/[id]/conditions`, with the column that matters most: **used by N
+  parameters**. A named condition only earns its name if you can see what it affects, and that
+  count is Phase 03's reuse property made visible. Deleting one names the consequence — it
+  cascades to every override using it.
+- Predicates render in plain language ("platform is android and app ≥ 4.0.0"), not as raw JSON.
+  Showing the object would make every condition look alike at a glance, which is the one thing a
+  reusable-condition list cannot afford.
+- An empty predicate reads "matches everyone" explicitly, because a blank cell would look like
+  "not configured yet" when it means the opposite.
+- **G-8c — constraint violations reach the operator as advice, not as constraint names.** A
+  duplicate priority says which number collided and that lower wins; a boolean default of "yes" is
+  refused in the form before it reaches the CHECK; a bad key shape says lower_snake_case. Six
+  assertions in `__tests__/parameter-errors.test.ts`, each also asserting the raw constraint name
+  does NOT survive into the message.
+- Changing a parameter's type resets its default to a valid example rather than leaving a value the
+  CHECK will reject — a type picker changing the default is less surprising than a save failing for
+  a field the operator never touched.
+- The override form suggests the next free priority, so the UNIQUE constraint is rarely met at all.
+
+### Phase 06 (earlier) — device preview + the staged-diff regression
 
 - **Fixed: a rollout change staged nothing.** `getPublishStatus` compared template/payload/display/
   priority but not `rollout_percentage` or `cohort`, so an operator could take a config from 10% to

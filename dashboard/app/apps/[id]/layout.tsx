@@ -25,6 +25,8 @@ export default async function AppLayout({
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-4 px-6 py-2">
           <div className="flex items-center gap-3 text-sm text-neutral-500">
             <Link href={`/apps/${params.id}`} className="hover:underline">App</Link>
+            <Link href={`/apps/${params.id}/parameters`} className="hover:underline">Parameters</Link>
+            <Link href={`/apps/${params.id}/conditions`} className="hover:underline">Conditions</Link>
             <Link href={`/apps/${params.id}/preview`} className="hover:underline">Preview</Link>
             <Link href={`/apps/${params.id}/history`} className="hover:underline">Activity</Link>
             <span className="text-neutral-300">·</span>
