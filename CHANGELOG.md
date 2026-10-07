@@ -58,6 +58,44 @@
   default rather than throwing. Proven by mutation — renaming `template` to `templateId` fails both
   this test and the inlined-fixture drift check; restoring it passes.
 
+### Dashboard split in two: organisation matrix, then the app you select
+
+Designed through Stitch as states `org_dashboard` and `admin` (mockups 07–08), then implemented.
+
+- **`/` and `/dashboard` are the ORGANISATION view.** A matrix with one row per app and one
+  column per dimension — platforms, parameters, conditions, configs, live version, unpublished,
+  keys — so an operator compares apps at a glance instead of opening each in turn. Root no longer
+  auto-selects a single app: that shortcut hid exactly the questions this view answers, namely
+  which app has unpublished changes and which has never published.
+- **The `never published` column is the one to scan first**, and the page says so: an app serving
+  nothing to devices looks identical to a healthy one in every other column, however many
+  parameters it holds.
+- **Admin lives bottom-left**, below a divider, in its own group: Members, Audit log, API access,
+  Billing. Placement is the point, not the heading — these are account-wide and some are
+  irreversible, so Billing one row under Parameters is how muscle memory ends up somewhere
+  expensive. A test asserts the group sits BELOW the workspace nav in the DOM, not merely that
+  it is labelled.
+- **`OrgShell` is a separate shell from `AppShell`.** Inside an app the nav is Parameters /
+  Conditions / Configs; at org level none of those have a subject yet, so offering them would be
+  navigation to nothing.
+- Members is derived, not invented: membership is per-app (`app_member`), so the page lists the
+  apps each person can reach rather than implying an account-wide role that does not exist. Other
+  members show by id — `auth.users` is not readable through RLS, and a client-side lookup of it
+  would be an email-enumeration surface.
+- The staged count in the matrix comes from the SAME `getPublishStatus` the per-app publish page
+  uses. A second definition of "unpublished" would eventually disagree, and the org view saying 3
+  while the app view says 4 is worse than not showing it.
+- Stat cards carry counts only. The mockup also showed total evaluations, edge latency and an
+  attestation posture score; none has a data source.
+
+Verified in a browser: `/` lands on the matrix, two seeded apps compare correctly
+(`never published` against `v1`), the admin group renders below the workspace nav with all four
+entries, selecting a row opens that app's control plane, and its Keys page is app-scoped.
+
+**The icon guard earned its keep again** — it caught six new nav icons (`api`, `apps`,
+`credit_card`, `grid_view`, `group`, `receipt_long`) that would have shipped as literal ligature
+text.
+
 ### Sample restructured to the Kotlin Multiplatform wizard layout
 
 Taken from the canonical `Kotlin/kmp-app-template` rather than invented: a shared module holding

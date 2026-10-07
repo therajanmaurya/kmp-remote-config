@@ -6,9 +6,10 @@ import "./globals.css"
  * link below for why this list exists rather than loading the whole font.
  */
 const ICON_NAMES = [
-  "bolt", "check", "check_circle", "chevron_right", "content_copy",
-  "dashboard_customize", "deployed_code", "history", "info", "key", "layers",
-  "open_in_new", "preview", "radio_button_unchecked", "rocket_launch", "rule", "tune",
+  "api", "apps", "bolt", "check", "check_circle", "chevron_right", "content_copy",
+  "credit_card", "dashboard_customize", "deployed_code", "grid_view", "group", "history",
+  "info", "key", "layers", "open_in_new", "preview", "radio_button_unchecked",
+  "receipt_long", "rocket_launch", "rule", "tune",
 ] as const
 
 export const metadata: Metadata = {
