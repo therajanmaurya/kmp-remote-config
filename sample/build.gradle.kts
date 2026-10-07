@@ -7,40 +7,54 @@
  *
  *     https://www.apache.org/licenses/LICENSE-2.0
  */
+import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
+import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
+    alias(libs.plugins.android.kotlin.multiplatform.library)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
 }
 
 // ============================================================================
-// SAMPLE — com.mobilebytesensei.rconfig
+// SAMPLE — com.mobilebytesensei.rconfig (Compose Multiplatform)
 // ============================================================================
-// A Kotlin Multiplatform app that integrates the SDK exactly as the onboarding wizard
-// instructs, so the documented path is one that has actually been compiled.
+// A Compose Multiplatform app integrating the SDK exactly as the onboarding wizard instructs,
+// so the documented path is one that has been COMPILED rather than merely written down.
 //
-// NOT published (no vanniktech plugin, absent from CMP_LIBRARY_METADATA) — it is a consumer,
-// and publishing it would put a sample on Maven Central beside the library.
+// Targets mirror `cmp-remote-config-compose` — the renderer's reach is the ceiling for any app
+// that renders. The HEADLESS half of the SDK goes further (15 targets: server, watchOS, tvOS,
+// linux, mingw), and `sample-headless` exists to prove that half independently. Together the
+// two samples demonstrate the split the library is built around: a config can be EVALUATED
+// anywhere, and RENDERED wherever Compose runs.
 //
-// Targets are deliberately a SUBSET: jvm proves the integration on a desktop target that runs
-// in CI with no emulator or simulator. Adding android/ios here would make the sample the
-// slowest module in the build while proving the same commonMain wiring.
+// NOT published — it is a consumer. Publishing a sample beside the library would put an app on
+// Maven Central.
+@OptIn(ExperimentalKotlinGradlePluginApi::class, ExperimentalWasmDsl::class)
 kotlin {
+    applyDefaultHierarchyTemplate()
+
     jvm()
 
-    jvmToolchain(17)
-
-    compilerOptions {
-        jvmToolchain(17)
+    android {
+        namespace = "com.mobilebytesensei.rconfig"
+        compileSdk = libs.versions.android.compileSdk.get().toInt()
+        minSdk = libs.versions.android.minSdk.get().toInt()
+        compilerOptions { jvmTarget = JvmTarget.JVM_11 }
     }
+
+    iosArm64()
+    iosSimulatorArm64()
+
+    wasmJs { browser() }
 
     sourceSets {
         commonMain.dependencies {
-            // The two artefacts the dashboard's integration snippet names. Project
-            // dependencies rather than coordinates: the sample must break when the SDK
-            // changes under it, which is the only reason to keep a sample in-repo.
+            // The two artefacts the dashboard's integration snippet names. PROJECT
+            // dependencies, not coordinates: the sample must break when the SDK changes under
+            // it, which is the only reason to keep a sample in the repo at all.
             implementation(project(":cmp-remote-config"))
             implementation(project(":cmp-remote-config-compose"))
 
@@ -55,6 +69,18 @@ kotlin {
         jvmMain.dependencies {
             implementation(compose.desktop.currentOs)
             implementation(libs.ktor.client.cio)
+        }
+
+        androidMain.dependencies {
+            implementation(libs.ktor.client.okhttp)
+        }
+
+        iosMain.dependencies {
+            implementation(libs.ktor.client.darwin)
+        }
+
+        wasmJsMain.dependencies {
+            implementation(libs.ktor.client.js)
         }
 
         commonTest.dependencies {

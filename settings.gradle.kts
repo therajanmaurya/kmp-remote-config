@@ -30,6 +30,12 @@ include(":cmp-remote-config-compose")
 // it depends on the PROJECTS rather than published coordinates so it breaks when the SDK does.
 include(":sample")
 
+// The SAME SDK with no Compose anywhere: depends only on :cmp-remote-config and applies
+// neither Compose plugin, on targets Compose does not publish for (linux, mingw, watchOS,
+// tvOS). If the headless core ever gained a Compose dependency this module would stop
+// compiling — a guarantee no test of the library's own source can give.
+include(":sample-headless")
+
 // NOTE: `cmp-observe` is NOT a module here. It stays published from MobileByteLabs/KmpToolkit
 // and is consumed as `io.github.mobilebytelabs:cmp-observe` — vendoring a second copy of a
 // published module is exactly the drift this split was meant to avoid.

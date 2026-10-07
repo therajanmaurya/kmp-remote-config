@@ -58,6 +58,59 @@
   default rather than throwing. Proven by mutation — renaming `template` to `templateId` fails both
   this test and the inlined-fixture drift check; restoring it passes.
 
+### Samples — the Compose half and the headless half, both compiled
+
+Two sample modules, because the library is two artefacts and a single sample could only ever
+prove one of them.
+
+- **`:sample`** — Compose Multiplatform on jvm, android, iosArm64, iosSimulatorArm64 and wasmJs,
+  mirroring `cmp-remote-config-compose`'s reach. One screen shows BOTH halves side by side:
+  typed value reads through `RemoteConfigClient` (pure Kotlin, no Compose involved) and a
+  delivered UI config. Keeping them visibly separate is the point — a host app usually wants the
+  first and only sometimes the second.
+- **`:sample-headless`** — the SAME SDK with no Compose anywhere. Applies neither Compose plugin,
+  depends only on `:cmp-remote-config`, and targets **linuxX64, mingwX64, watchosArm64 and
+  tvosArm64 — none of which Compose Multiplatform publishes for.** A server, a CLI, a watch
+  complication. 7 contract tests covering the polling loop a backend actually runs: bundled
+  defaults before any fetch, the kill switch honoured from CACHE, the interval, the client floor,
+  and a refusal RETURNED rather than swallowed.
+- **The headless guarantee is mechanical.** Adding `:cmp-remote-config-compose` to that module
+  fails the linuxX64 build outright — proven by injecting it, watching
+  `Could not resolve project ':cmp-remote-config-compose'`, and restoring. If the core ever
+  acquires a Compose dependency, this module stops compiling. No test of the library's own source
+  could give that.
+- Both samples depend on the PROJECTS rather than published coordinates, so they break when the
+  SDK changes under them — the only reason to keep a sample in-repo.
+
+**A real packaging bug the first sample found immediately:** `kotlinx-serialization-json` was
+`implementation`, not `api`. `remoteConfigDefaults` returns a `JsonObject` and
+`RemoteConfigItem.payload` IS one, so those types were absent from every consumer's compile
+classpath and **the integration snippet the dashboard prints would not have compiled for anyone.**
+Promoted to `api` in both modules. A dependency that appears in your API is part of your API.
+
+`apiCheck` then failed correctly on 327 lines of new 5.0.0 public surface (`RemoteConfigClient`,
+the defaults builder, `SdkSettings`, the envelope types) — all intentional for a breaking major,
+so the dump was regenerated.
+
+### MCP server — onboarding and config management as tools
+
+- 12 tools over stdio: discovery (`list_apps`, `list_parameters`, `list_conditions`,
+  `list_versions`), `onboard_app`, authoring (`create_parameter`, `create_condition`,
+  `add_override`), inspection (`preview_for_device`, `explain_parameter`), and release
+  (`publish`, `rollback`).
+- **Auth, decided rather than invented**: operator-local, service-role key from the environment —
+  the same trust model `supabase-connect.sh` and `e2e_sdk_contract.sh` already use here. The
+  consequence is stated in the code rather than left to be discovered: service_role bypasses RLS,
+  so the `app_id` scoping IS the tenant boundary with no policy behind it. Not multi-tenant, never
+  over a network transport.
+- **`publish` is its own tool, deliberately.** A combined set-and-publish would make the Phase 02
+  safety gate decorative; an agent can stage ten edits and a human can still look first. A test
+  asserts no other tool's name contains "publish".
+- 13 tests: 9 over the operations layer, each asserting a raw Postgres constraint name does NOT
+  survive into a message a model reads, and **4 driving the built server over real stdio** —
+  handshake, tool listing, description quality, and the publish separation. That last set already
+  caught `list_apps` shipping a description too thin for a model to choose from.
+
 ### Onboarding redesigned through Stitch (mockups 07–09)
 
 - The first onboarding build was hand-rolled — a bare form in whitespace — while every other
