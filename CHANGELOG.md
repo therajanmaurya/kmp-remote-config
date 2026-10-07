@@ -58,6 +58,35 @@
   default rather than throwing. Proven by mutation — renaming `template` to `templateId` fails both
   this test and the inlined-fixture drift check; restoring it passes.
 
+### Roborazzi goldens — and the two rendering bugs they immediately found
+
+- 10 golden images for the nine designed template bodies (`src/jvmTest/roborazzi/`). JVM-only:
+  the bodies live in `commonMain` and every target composes the same tree, so one capture covers
+  all of them — running per-platform would compare the same composition against itself.
+- **The goldens found real bugs on their first run, which is the point.** `survey_nps` with
+  `scale_max: 10` renders ELEVEN chips (0..10); at a fixed 28.dp they overflowed the row and the
+  **10 was clipped away** — an NPS survey that could not record its top score. And the decline
+  button clipped its own label mid-word ("Maybe late…"). Both compiled, both passed every other
+  test in the module, and neither was visible without rendering.
+- Fixed by weighting the chips instead of sizing them, and by keeping button labels on one line —
+  a button states an action, so shrinking a label beats hiding half of it.
+- **The suite is proven to fail**: verified green unchanged, verified RED against an injected
+  regression in `PaywallBody`, verified green again on restore. A golden suite that cannot fail
+  is worse than none, because it reports confidence it has not earned.
+- Goldens are reviewed before committing. One accepted unseen records whatever the bug produced
+  and then defends it.
+
+### Fixed — the 4MB font: the site was slow because of one missing URL parameter
+
+- The dashboard downloaded a **4,003,092-byte font** on every first visit. Google serves the
+  COMPLETE Material Symbols variable font unless the stylesheet URL carries `icon_names`. Subset
+  to the fourteen icons this app renders, the same font is **19,176 bytes — 99.5% smaller**.
+- Nothing failed and nothing warned; the only symptom was that the site felt slow. Measured
+  before/after in a real browser: the 4MB CSS/font bucket is gone and a warm load is ~366ms.
+- `__tests__/icon-font.test.ts` locks it three ways: the URL must stay subsetted, every icon the
+  source renders must be IN the subset (or it renders as its ligature text and the tempting
+  "fix" is deleting the parameter), and no declared icon may be unused.
+
 ### Fixed — sign-in was dead on every deploy I made
 
 - **Clicking "Continue with Google" stuck on "Redirecting to Google…" forever.** Two independent

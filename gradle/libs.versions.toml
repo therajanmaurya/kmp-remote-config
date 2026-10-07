@@ -24,6 +24,7 @@ ktlint = "1.8.0"
 
 # Testing
 junit = "4.13.2"
+roborazzi = "1.74.0"
 robolectric = "4.14.1"
 # Emulated API level for Robolectric host tests. Pinned BELOW android-compileSdk on purpose:
 # Robolectric 4.14.1 ships images only to 35 and hard-fails on a higher targetSdk. Consumed by
@@ -185,6 +186,8 @@ coil-network-ktor = { module = "io.coil-kt.coil3:coil-network-ktor3", version = 
 cmp-network-monitor = { module = "io.github.mobilebytelabs:cmp-network-monitor", version = "3.2.1" }
 cmp-network-monitor-compose = { module = "io.github.mobilebytelabs:cmp-network-monitor-compose", version = "3.2.1" }
 
+roborazzi-compose-desktop = { module = "io.github.takahirom.roborazzi:roborazzi-compose-desktop", version.ref = "roborazzi" }
+
 [plugins]
 gradle-plugin-publish = { id = "com.gradle.plugin-publish", version.ref = "gradlePluginPublish" }
 android-kotlin-multiplatform-library = { id = "com.android.kotlin.multiplatform.library", version.ref = "agp" }
@@ -200,3 +203,4 @@ kotlinxSerialization = { id = "org.jetbrains.kotlin.plugin.serialization", versi
 binaryCompatibilityValidator = { id = "org.jetbrains.kotlinx.binary-compatibility-validator", version.ref = "kotlinx-binary-compatibility-validator" }
 dokka = { id = "org.jetbrains.dokka", version.ref = "dokka" }
 kover = { id = "org.jetbrains.kotlinx.kover", version.ref = "kover" }
+roborazzi = { id = "io.github.takahirom.roborazzi", version.ref = "roborazzi" }

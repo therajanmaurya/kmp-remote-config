@@ -3,6 +3,7 @@ package com.mobilebytelabs.remoteconfig.ui.templates
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -26,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -121,7 +123,7 @@ internal fun PrimaryAction(label: String, modifier: Modifier = Modifier, onClick
         modifier = modifier.fillMaxWidth().height(48.dp),
         shape = RoundedCornerShape(12.dp),
     ) {
-        Text(label, fontWeight = FontWeight.SemiBold)
+        Text(label, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
     }
 }
 
@@ -140,8 +142,9 @@ internal fun OutlinedAction(label: String, modifier: Modifier = Modifier, onClic
         modifier = modifier.height(48.dp),
         shape = RoundedCornerShape(12.dp),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+        contentPadding = PaddingValues(horizontal = 12.dp),
     ) {
-        Text(label)
+        Text(label, maxLines = 1, overflow = TextOverflow.Visible, softWrap = false, fontSize = 13.sp)
     }
 }
 

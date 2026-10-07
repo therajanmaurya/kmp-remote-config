@@ -18,6 +18,7 @@ plugins {
     alias(libs.plugins.android.kotlin.multiplatform.library)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
+    alias(libs.plugins.roborazzi)
     alias(libs.plugins.vanniktech.mavenPublish)
     alias(libs.plugins.binaryCompatibilityValidator)
     id("io.github.mobilebytelabs.remoteconfig.dokka")
@@ -141,6 +142,18 @@ kotlin {
 
         commonTest.dependencies {
             implementation(libs.kotlin.test)
+        }
+
+        // Golden-image tests for the nine designed template bodies. JVM-only on purpose:
+        // Roborazzi renders through Compose Desktop, and a golden rendered once is a golden
+        // that holds for every target, because the bodies live in commonMain and share one
+        // composition. Running them per-platform would compare the same tree against itself.
+        jvmTest.dependencies {
+            implementation(libs.kotlin.test)
+            @OptIn(org.jetbrains.compose.ExperimentalComposeLibrary::class)
+            implementation(compose.uiTest)
+            implementation(compose.desktop.currentOs)
+            implementation(libs.roborazzi.compose.desktop)
         }
     }
 }

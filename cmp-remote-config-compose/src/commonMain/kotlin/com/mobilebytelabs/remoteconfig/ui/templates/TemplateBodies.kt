@@ -1,6 +1,8 @@
 package com.mobilebytelabs.remoteconfig.ui.templates
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -259,35 +261,39 @@ internal fun SurveyNpsBody(item: RemoteConfigItem, p: TemplatePayload, a: Templa
 
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(3.dp),
         ) {
             (min..max).forEach { n ->
                 val on = selected == n
                 Surface(
                     modifier = Modifier
-                        .size(28.dp)
+                        // weight, not a fixed size: an 0..10 scale is ELEVEN chips, and at a
+                        // fixed 28.dp they overflowed the row and the 10 was clipped away —
+                        // the one score the survey most needs to capture.
+                        .weight(1f)
+                        .height(30.dp)
                         .clickable { selected = n },
                     shape = RoundedCornerShape(6.dp),
                     color = if (on) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
                     contentColor = if (on) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                 ) {
-                    Text(
-                        text = n.toString(),
-                        modifier = Modifier.padding(top = 5.dp),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    )
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            text = n.toString(),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                        )
+                    }
                 }
             }
         }
 
         VSpace(4)
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            OutlinedAction("Maybe later", Modifier.fillMaxWidth(0.4f), a.onSecondary)
+            OutlinedAction("Maybe later", Modifier.weight(1f), a.onSecondary)
             // Disabled until a score exists: submitting an empty NPS response would record a
             // row that means nothing and cannot be told apart from a real one.
-            PrimaryAction("Send feedback") {
+            PrimaryAction("Send feedback", Modifier.weight(1.4f)) {
                 selected?.let { a.onPrimary(ActionType.SUBMIT.value, it.toString()) }
             }
         }
