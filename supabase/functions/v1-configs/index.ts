@@ -5,7 +5,14 @@ import { corsPreflight, failSoftConfigs, jsonForbidden, jsonOk, jsonRateLimited 
 import { consumeRateLimit, readSubject } from "../_shared/rate-limit.ts";
 import { type ConfigRow, matchesAudience, sdkCanRender, type TemplateRow, toWireConfig } from "./audience.ts";
 
-type Row = ConfigRow & { template: TemplateRow };
+// A snapshot entry is `to_jsonb(config) || {template:…}`, so it carries every config column
+// plus the template contract frozen at publish time. Schedule bounds travel with it because
+// they are evaluated at FETCH time, not publish time — see below.
+type Row = ConfigRow & {
+  template: TemplateRow;
+  starts_at?: string | null;
+  ends_at?: string | null;
+};
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return corsPreflight();
@@ -64,24 +71,34 @@ Deno.serve(async (req) => {
     // same class as a bad package id.
     if (!ctx.sdkVersion?.trim()) return jsonForbidden("sdk_version_missing");
 
-    const nowIso = new Date().toISOString();
+    const now = Date.now();
+    // Serve the latest PUBLISHED snapshot, never the live `config` rows. Reading the drafts is
+    // what made every edit live on the next fetch: an operator mid-sentence in the dashboard
+    // was already shipping. `config` is now the draft surface and this is the gate.
+    //
     // Scoped by the app resolved from the key. service_role bypasses RLS, so this scoping
     // IS the tenant boundary — there is no policy behind it to catch a mistake here.
     const { data, error } = await db
-      .from("config")
-      .select(
-        "id, template_id, payload, display, screens, platforms, min_app_version, max_app_version, priority, is_dismissible, max_impressions, cooldown_hours, version, template:template_id (id, version, renders_ui, requires_ack, min_sdk_version)",
-      )
+      .from("config_version")
+      .select("content")
       .eq("app_id", id.appId)
-      .eq("is_enabled", true)
-      .or(`starts_at.is.null,starts_at.lte.${nowIso}`)
-      .or(`ends_at.is.null,ends_at.gte.${nowIso}`)
-      .order("priority", { ascending: false });
+      .order("version", { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
     if (error) return failSoft("config_query_failed");
 
-    const configs = ((data ?? []) as unknown as Row[])
+    // An app that has never published serves nothing. Fail CLOSED on purpose: the alternative
+    // — falling back to the drafts — would reinstate the exact gap this phase closes, and
+    // would do it silently on precisely the apps nobody has reviewed yet.
+    const snapshot = ((data?.content ?? []) as unknown as Row[]);
+
+    const configs = snapshot
       .filter((r) => r.template != null)
+      // Schedule is evaluated HERE rather than frozen into the snapshot, so a config published
+      // today with a start of next Tuesday begins serving on Tuesday with no second publish.
+      // Everything else about the row is fixed at publish; only the clock moves.
+      .filter((r) => withinSchedule(r, now))
       .filter((r) => matchesAudience(r, ctx))
       .filter((r) => sdkCanRender(r.template, ctx.sdkVersion))
       .map((r) => toWireConfig(r, r.template));
@@ -93,6 +110,13 @@ Deno.serve(async (req) => {
     return failSoft("unhandled", e);
   }
 });
+
+/** A null bound means "unbounded in that direction", which is the common case. */
+function withinSchedule(r: Row, nowMs: number): boolean {
+  if (r.starts_at && Date.parse(r.starts_at) > nowMs) return false;
+  if (r.ends_at && Date.parse(r.ends_at) < nowMs) return false;
+  return true;
+}
 
 /**
  * Fail soft, but never silently. §8.1 requires the failure be reported, "because a fetch

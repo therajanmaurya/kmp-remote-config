@@ -122,8 +122,37 @@ code=$(curl -s -o "$WORK/body.json" -w '%{http_code}' "$FUNC" \
 check "deployed /v1-configs answers 200 for a valid test key" 200 "$code"
 if [ "$code" != "200" ]; then echo "  body: $(head -c 300 "$WORK/body.json")"; exit "$fail"; fi
 
+# A freshly seeded config is a DRAFT. Assert the gate holds BEFORE asserting delivery:
+# nothing published means nothing served, which is the fail-closed half of G-3.
 n=$(grep -o '"id"' "$WORK/body.json" | wc -l | tr -d ' ')
-check "the seeded sentinel config is delivered" 1 "$n"
+check "an unpublished app serves nothing (G-3 fail-closed)" 0 "$n"
+
+curl -s -K "$WORK/curlrc" -X POST "$REST/rpc/publish" -d "{\"p_app\":\"$APP_ID\"}" -o "$WORK/pub0.json" >/dev/null 2>&1
+code=$(curl -s -o "$WORK/body.json" -w '%{http_code}' "$FUNC" \
+  -H "X-RC-Key: $SENTINEL_KEY" -H "X-RC-Package: $SENTINEL_BUNDLE" \
+  -H "X-RC-Platform: android" -H "X-RC-App-Version: 5.0.0" -H "X-RC-SDK-Version: 5.0.0")
+n=$(grep -o '"id"' "$WORK/body.json" | wc -l | tr -d ' ')
+check "after Publish the sentinel config is delivered" 1 "$n"
+
+# ---- G-3: the publish gate holds against the DEPLOYED function -------------------
+# The safety assertion of Phase 02. An edit must be invisible to devices until someone
+# presses Publish; today the endpoint reads live `config` rows, so the first check FAILS and
+# that failure is the proof the gap is real.
+title_now() { curl -s "$FUNC" \
+    -H "X-RC-Key: $SENTINEL_KEY" -H "X-RC-Package: $SENTINEL_BUNDLE" \
+    -H "X-RC-Platform: android" -H "X-RC-App-Version: 5.0.0" -H "X-RC-SDK-Version: 5.0.0" \
+  | sed -n 's/.*"title":"\([^"]*\)".*/\1/p'; }
+
+# Edit the draft WITHOUT publishing.
+curl -s -K "$WORK/curlrc" -X PATCH "$REST/config?app_id=eq.$APP_ID" \
+  -d '{"payload":{"title":"UNPUBLISHED EDIT","body":"must not reach a device","_sentinel":"e2e_sdk_contract"}}' \
+  >/dev/null 2>&1
+
+check "an unpublished edit does NOT reach devices (G-3)" "e2e sentinel" "$(title_now)"
+
+# Publish it, and only now may the device see it.
+curl -s -K "$WORK/curlrc" -X POST "$REST/rpc/publish" -d "{\"p_app\":\"$APP_ID\"}" -o "$WORK/pub2.json" >/dev/null 2>&1
+check "after Publish the new value IS served (G-3)" "UNPUBLISHED EDIT" "$(title_now)"
 
 # ---- parse the LIVE body with the shipped model ---------------------------------
 ( cd "$REPO" && ./gradlew --quiet :cmp-remote-config:jvmTest \
