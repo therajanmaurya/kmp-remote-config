@@ -64,6 +64,11 @@ kotlin {
 
             implementation(libs.ktor.client.core)
             implementation(libs.kotlinx.coroutines.core)
+
+            // RemoteConfigHost resolves its ViewModel from Koin, so a host app that renders
+            // configs wires Koin. The headless sample shows the path that does not.
+            implementation(libs.koin.core)
+            implementation(libs.koin.compose.viewmodel)
         }
 
         jvmMain.dependencies {
@@ -86,5 +91,13 @@ kotlin {
         commonTest.dependencies {
             implementation(libs.kotlin.test)
         }
+    }
+}
+
+// `./gradlew :sample:run` opens the desktop window. The sample is a CONSUMER, so this is the
+// only place it behaves like an app rather than a library.
+compose.desktop {
+    application {
+        mainClass = "com.mobilebytesensei.rconfig.MainKt"
     }
 }

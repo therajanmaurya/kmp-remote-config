@@ -1,7 +1,6 @@
 package com.mobilebytesensei.rconfig
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,7 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.mobilebytelabs.remoteconfig.model.ActionType
+import com.mobilebytelabs.remoteconfig.ui.RemoteConfigHost
 import kotlinx.coroutines.launch
 
 /**
@@ -121,15 +120,11 @@ fun SampleScreen(config: SampleRemoteConfig) {
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    // In a real app this is `RemoteConfigHost()`, which resolves the template's
-                    // designed body and wraps it in the surface `display` names. It is shown as
-                    // a description here because the Host reads its state from an injected Koin
-                    // ViewModel, and wiring DI into a sample would obscure the integration this
-                    // file exists to demonstrate.
-                    SampleSurfacePlaceholder(
-                        template = active.template,
-                        onAction = { /* ActionDispatcher.dispatch(…) in a real app */ },
-                    )
+                    // The REAL Host. It resolves the template's designed body, wraps it in the
+                    // surface `display` names, and routes action CTAs to the handlers
+                    // registered in sampleModule(). Nothing here is sample-specific: this one
+                    // line is the whole rendering integration.
+                    RemoteConfigHost()
                 }
             }
         }
@@ -153,18 +148,3 @@ private fun ValueRow(key: String, value: String?) {
     }
 }
 
-@Composable
-private fun SampleSurfacePlaceholder(template: String, onAction: (ActionType) -> Unit) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-    ) {
-        Box(modifier = Modifier.padding(16.dp)) {
-            Text(
-                "RemoteConfigHost() renders the \"$template\" body here, in the surface its " +
-                    "display names.",
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
-    }
-}

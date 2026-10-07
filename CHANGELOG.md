@@ -58,6 +58,37 @@
   default rather than throwing. Proven by mutation — renaming `template` to `templateId` fails both
   this test and the inlined-fixture drift check; restoring it passes.
 
+### Fixed — a staged rollout reached NOBODY through the documented integration
+
+- The `remoteConfig { }` Koin DSL registered a `DeviceIdProvider` singleton and then built the
+  service **without it**. Every app integrating the documented way therefore sent no
+  `X-RC-Device`, and the server deliberately excludes an unidentified caller from any PARTIAL
+  rollout — so Phase 05's staged rollout reached nobody, silently, for every consumer. Nothing
+  failed; the feature simply did not work.
+- Found by making the sample runnable: the SDK's own tests construct a `RemoteConfigService`
+  directly and never exercised the wiring Koin produces. `RemoteConfigDslTest` now drives the
+  DSL itself and asserts the full header tuple plus a stable device id across fetches — a
+  per-request id would re-roll bucket membership on every poll, which is the "feature keeps
+  flickering" bug that reads as a product defect rather than a config one.
+- Fixing it surfaced a second latent fault: `singleOf(::DeviceIdProvider)` asks Koin to resolve
+  EVERY constructor parameter including defaulted ones, so its `Settings = defaultSettings()`
+  became a missing definition the moment anything actually resolved the type. Both providers are
+  now registered with explicit constructors so their defaults are honoured.
+- The DSL's own KDoc still advertised `supabaseUrl` / `supabaseKey`, removed in 5.0.0. It is the
+  first thing an integrator reads, and it told them to use properties that no longer exist.
+
+### Sample — now actually runnable
+
+- `./gradlew :sample:run` opens a desktop window. Koin wiring in `sampleModule()` exactly as the
+  dashboard snippet describes, action handlers for store / url / acknowledge / submit, and the
+  REAL `RemoteConfigHost()` mounted rather than a placeholder describing one.
+- The publishable key comes from `RCONFIG_PUBLISHABLE_KEY`, not a constant: a key is not a
+  secret, but a sample with somebody's real key baked in stops working the day that app is
+  deleted and invites copy-paste into a reader's project. Without it the app exits with the
+  instruction rather than a stack trace.
+- Verified by running it against the live control plane with a real issued key: launched, Koin
+  started, window up, **zero exceptions**.
+
 ### Samples — the Compose half and the headless half, both compiled
 
 Two sample modules, because the library is two artefacts and a single sample could only ever

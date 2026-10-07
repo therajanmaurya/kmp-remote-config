@@ -20,8 +20,11 @@ import org.koin.core.module.dsl.viewModelOf
  * ```
  * val networkModule = module {
  *     remoteConfig {
- *         supabaseUrl = "..."
- *         supabaseKey = "..."
+ *         publishableKey = "rck_test_…"              // issued in the rconfig dashboard
+ *         packageName    = "com.example.app"          // one id for every KMP target
+ *         platform       = "android"
+ *         appVersion     = BuildConfig.VERSION_NAME
+ *         httpClient     = yourKtorClient             // injected: this library ships no engine
  *
  *         action(ActionType.PREMIUM) { _, _ -> AppNavigator.navigateTo("paywall") }
  *         action("open_downloads")    { v, _ -> AppNavigator.navigateTo("downloads?session=${v.orEmpty()}") }
@@ -31,6 +34,9 @@ import org.koin.core.module.dsl.viewModelOf
  * }
  * ```
  *
+ * `supabaseUrl` / `supabaseKey` were REMOVED in 5.0.0 — the SDK talks to the rconfig control
+ * plane, not to a consumer-supplied Supabase project.
+ *
  * Then drop [com.mobilebytelabs.remoteconfig.ui.RemoteConfigHost] anywhere in the Compose tree;
  * action CTAs route to handlers registered here.
  */
@@ -39,6 +45,8 @@ fun Module.remoteConfig(block: RemoteConfigBuilder.() -> Unit) {
     val settings = builder.build()
 
     single { settings }
+    single { RemoteConfigLocalStore() }
+    single { DeviceIdProvider() }
     single {
         RemoteConfigService(
             baseUrl = settings.baseUrl,
@@ -48,10 +56,15 @@ fun Module.remoteConfig(block: RemoteConfigBuilder.() -> Unit) {
             appVersion = settings.appVersion,
             httpClient = settings.httpClient,
             certDigest = settings.certDigest,
+            // Bucketing input for a staged rollout. This was MISSING: the module registered a
+            // DeviceIdProvider and then built the service without it, so every app integrating
+            // through this DSL sent no X-RC-Device — and the server excludes an unidentified
+            // caller from any PARTIAL rollout. A staged rollout therefore reached nobody,
+            // silently, through the documented path. Nothing failed; the feature just did not
+            // work.
+            deviceId = get<DeviceIdProvider>().getDeviceId(),
         )
     }
-    singleOf(::RemoteConfigLocalStore)
-    singleOf(::DeviceIdProvider)
     // The evaluator no longer takes an app-version supplier: the server owns the version
     // window, the schedule and the platform filter in 5.0.0.
     single { RemoteConfigEvaluator(get()) }

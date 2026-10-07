@@ -143,6 +143,9 @@ kotlin {
 
         commonTest.dependencies {
             implementation(libs.kotlin.test)
+            // The DSL test drives the wiring Koin actually produces, which needs an engine.
+            implementation(libs.ktor.client.mock)
+            implementation(libs.kotlinx.coroutines.test)
         }
 
         // Golden-image tests for the nine designed template bodies. JVM-only on purpose:
