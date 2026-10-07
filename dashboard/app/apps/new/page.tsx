@@ -44,7 +44,7 @@ export default function NewAppPage() {
           />
           {/* Show the derived slug as it is typed: it ends up in key prefixes and logs, so
               the operator should see it BEFORE saving rather than discover it after. */}
-          <p className="mt-1 text-xs text-neutral-500">
+          <p className="mt-1 text-xs text-secondary">
             {slug ? (
               <>
                 Slug: <span className="font-mono">{slug}</span> — appears in your key prefixes.
@@ -74,7 +74,7 @@ export default function NewAppPage() {
 
         <button
           disabled={busy}
-          className="rounded bg-neutral-900 px-4 py-2 text-sm text-white disabled:opacity-60"
+          className="rounded bg-primary px-4 py-2 text-sm font-semibold text-on_primary disabled:opacity-60"
         >
           {busy ? "Creating…" : "Create app"}
         </button>

@@ -13,7 +13,7 @@ export function AdoptTemplateButton({
   const [error, setError] = useState<string | null>(null)
 
   if (apps.length === 0) {
-    return <p className="text-xs text-neutral-500">Create an app first.</p>
+    return <p className="text-xs text-secondary">Create an app first.</p>
   }
 
   async function adopt(appId: string) {
@@ -36,7 +36,7 @@ export function AdoptTemplateButton({
           className="rounded border px-3 py-1.5 text-xs disabled:opacity-60">
           {busy ? "Adding…" : "Add to my app"}
         </button>
-        {error && <p role="alert" className="mt-1 text-xs text-red-700">{error}</p>}
+        {error && <p role="alert" className="mt-1 text-xs text-on_error_container">{error}</p>}
       </div>
     )
   }
@@ -51,16 +51,16 @@ export function AdoptTemplateButton({
         <div className="space-y-1">
           {apps.map((a) => (
             <button key={a.id} disabled={busy} onClick={() => adopt(a.id)}
-              className="block w-full rounded border px-2 py-1 text-right text-xs hover:bg-neutral-50 disabled:opacity-60">
+              className="block w-full rounded border px-2 py-1 text-right text-xs hover:bg-surface_variant disabled:opacity-60">
               {a.display_name}
             </button>
           ))}
-          <button onClick={() => setOpen(false)} className="text-xs text-neutral-500 hover:underline">
+          <button onClick={() => setOpen(false)} className="text-xs text-secondary hover:underline">
             cancel
           </button>
         </div>
       )}
-      {error && <p role="alert" className="mt-1 text-xs text-red-700">{error}</p>}
+      {error && <p role="alert" className="mt-1 text-xs text-on_error_container">{error}</p>}
     </div>
   )
 }

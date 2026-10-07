@@ -1,14 +1,23 @@
 export const runtime = "edge"
 
-import Link from "next/link"
+import { headers } from "next/headers"
 import { requireUser } from "@/lib/require-user"
 import { getPublishStatus } from "@/lib/publish-status"
-import { UnpublishedPill } from "@/components/UnpublishedPill"
+import { AppShell } from "@/components/AppShell"
 
-/**
- * Chrome for every route under an app. The pill lives here rather than on the publish page
- * because its whole job is to be seen by someone who is NOT thinking about publishing.
- */
+/** Which sidebar entry to highlight, derived from the path rather than threaded through each page. */
+function activeFromPath(pathname: string): string {
+  if (pathname.includes("/parameters")) return "Parameters"
+  if (pathname.includes("/conditions")) return "Conditions"
+  if (pathname.includes("/configs")) return "Configs"
+  if (pathname.includes("/templates")) return "Templates"
+  if (pathname.includes("/keys")) return "Keys"
+  if (pathname.includes("/preview")) return "Preview"
+  if (pathname.includes("/history")) return "Activity"
+  if (pathname.includes("/publish")) return "Publish"
+  return "Overview"
+}
+
 export default async function AppLayout({
   children,
   params,
@@ -17,25 +26,26 @@ export default async function AppLayout({
   params: { id: string }
 }) {
   const { supabase } = await requireUser()
-  const { staged, liveVersion } = await getPublishStatus(supabase, params.id)
+
+  const [{ data: app }, status] = await Promise.all([
+    supabase.from("app").select("display_name").eq("id", params.id).maybeSingle(),
+    getPublishStatus(supabase, params.id),
+  ])
+
+  // `x-invoke-path` is set by Next on the edge runtime; `x-pathname` by our middleware. Either
+  // way a miss only costs the highlight, never the page.
+  const h = headers()
+  const pathname = h.get("x-pathname") ?? h.get("x-invoke-path") ?? ""
 
   return (
-    <>
-      <div className="border-b bg-white">
-        <div className="mx-auto flex max-w-4xl items-center justify-between gap-4 px-6 py-2">
-          <div className="flex items-center gap-3 text-sm text-neutral-500">
-            <Link href={`/apps/${params.id}`} className="hover:underline">App</Link>
-            <Link href={`/apps/${params.id}/parameters`} className="hover:underline">Parameters</Link>
-            <Link href={`/apps/${params.id}/conditions`} className="hover:underline">Conditions</Link>
-            <Link href={`/apps/${params.id}/preview`} className="hover:underline">Preview</Link>
-            <Link href={`/apps/${params.id}/history`} className="hover:underline">Activity</Link>
-            <span className="text-neutral-300">·</span>
-            <span>{liveVersion ? `v${liveVersion} live` : "never published"}</span>
-          </div>
-          <UnpublishedPill appId={params.id} count={staged.length} />
-        </div>
-      </div>
+    <AppShell
+      appId={params.id}
+      appName={app?.display_name ?? "App"}
+      active={activeFromPath(pathname)}
+      liveVersion={status.liveVersion}
+      stagedCount={status.staged.length}
+    >
       {children}
-    </>
+    </AppShell>
   )
 }

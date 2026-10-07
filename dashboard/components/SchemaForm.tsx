@@ -26,7 +26,7 @@ export function SchemaForm({ fields, values, errors, onChange }: Props) {
           <div key={f.name}>
             <label htmlFor={id} className="block text-sm font-medium">
               {f.label}
-              {f.required && <span className="ml-1 text-red-600">*</span>}
+              {f.required && <span className="ml-1 text-error">*</span>}
             </label>
 
             {f.control === "text" && (
@@ -48,7 +48,7 @@ export function SchemaForm({ fields, values, errors, onChange }: Props) {
               <label className="mt-1 flex items-center gap-2 text-sm">
                 <input id={id} type="checkbox" checked={Boolean(v)}
                   onChange={(e) => onChange(f.name, e.target.checked)} />
-                <span className="text-neutral-600">{f.label}</span>
+                <span className="text-on_surface_variant">{f.label}</span>
               </label>
             )}
 
@@ -65,7 +65,7 @@ export function SchemaForm({ fields, values, errors, onChange }: Props) {
                 <input id={id} className={`${common} font-mono`} value={(v as string) ?? ""}
                   placeholder='"beta"  ·  42  ·  true'
                   onChange={(e) => onChange(f.name, e.target.value)} />
-                <p className="mt-1 text-xs text-neutral-500">
+                <p className="mt-1 text-xs text-secondary">
                   Any JSON value. Quote strings: <code>&quot;beta&quot;</code>.
                 </p>
               </>
@@ -82,18 +82,18 @@ export function SchemaForm({ fields, values, errors, onChange }: Props) {
               // optional — and when it was required, the error names a field the operator
               // never saw.
               <p data-testid={`unsupported-${f.name}`}
-                className="mt-1 rounded border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
+                className="mt-1 rounded border border-warning/30 bg-warning_container p-3 text-xs text-on_warning_container">
                 This template uses a <code>{f.rawType}</code> field, which this editor cannot
                 show yet. Saving is blocked so nothing silently loses this value.
               </p>
             )}
 
             {f.maxLength !== undefined && typeof v === "string" && (
-              <p className="mt-1 text-right text-xs text-neutral-400">
+              <p className="mt-1 text-right text-xs text-secondary">
                 {v.length}/{f.maxLength}
               </p>
             )}
-            {err && <p role="alert" className="mt-1 text-xs text-red-700">{err}</p>}
+            {err && <p role="alert" className="mt-1 text-xs text-on_error_container">{err}</p>}
           </div>
         )
       })}
@@ -113,13 +113,13 @@ function RepeatField({ id, value, onChange }: { id: string; value: string[]; onC
             onChange={(e) => onChange(value.map((r, j) => (j === i ? e.target.value : r)))}
           />
           <button type="button" onClick={() => onChange(value.filter((_, j) => j !== i))}
-            className="rounded border px-2 text-sm text-neutral-600">
+            className="rounded border px-2 text-sm text-on_surface_variant">
             Remove
           </button>
         </div>
       ))}
       <button type="button" onClick={() => onChange([...value, ""])}
-        className="rounded border px-2 py-1 text-xs text-neutral-700">
+        className="rounded border px-2 py-1 text-xs text-on_surface_variant">
         Add entry
       </button>
     </div>

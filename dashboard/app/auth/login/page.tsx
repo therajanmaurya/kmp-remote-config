@@ -75,7 +75,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm space-y-6">
         <div>
           <h1 className="text-2xl font-semibold">rconfig</h1>
-          <p className="mt-1 text-sm text-neutral-500">Remote config for your apps.</p>
+          <p className="mt-1 text-sm text-secondary">Remote config for your apps.</p>
         </div>
         {error && (
           <p role="alert" className="rounded border border-red-300 bg-red-50 p-3 text-sm text-red-800">
@@ -85,7 +85,7 @@ export default function LoginPage() {
         <button
           onClick={signIn}
           disabled={busy}
-          className="flex w-full items-center justify-center gap-3 rounded border px-4 py-2.5 text-sm font-medium hover:bg-neutral-50 disabled:opacity-60"
+          className="flex w-full items-center justify-center gap-3 rounded border px-4 py-2.5 text-sm font-medium hover:bg-surface_variant disabled:opacity-60"
         >
           <GoogleIcon />
           {busy ? "Redirecting…" : "Continue with Google"}

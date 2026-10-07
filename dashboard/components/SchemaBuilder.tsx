@@ -48,7 +48,7 @@ export function SchemaBuilder({ appId }: { appId: string }) {
   return (
     <main className="mx-auto max-w-5xl p-6">
       <h1 className="text-xl font-semibold">New template</h1>
-      <p className="mt-1 max-w-2xl text-sm text-neutral-500">
+      <p className="mt-1 max-w-2xl text-sm text-secondary">
         Compose the fields an operator will fill in when they author a config of this type.
         The template is saved <strong>private</strong> to this app; sharing it with the
         community is a separate step.
@@ -73,7 +73,7 @@ export function SchemaBuilder({ appId }: { appId: string }) {
             Renders UI
           </label>
           {!rendersUi && (
-            <p className="-mt-3 text-xs text-neutral-500">
+            <p className="-mt-3 text-xs text-secondary">
               A value-only type, like a feature flag. It gets no display, no preview and no
               impression caps.
             </p>
@@ -101,7 +101,7 @@ export function SchemaBuilder({ appId }: { appId: string }) {
             Requires acknowledgement
           </label>
           {requiresAck && (
-            <p className="-mt-3 text-xs text-neutral-500">
+            <p className="-mt-3 text-xs text-secondary">
               Configs of this type cannot be dismissible — something a user can swipe away has
               not been acknowledged.
             </p>
@@ -127,7 +127,7 @@ export function SchemaBuilder({ appId }: { appId: string }) {
                       required
                     </label>
                     <button type="button" onClick={() => setFields((c) => c.filter((_, j) => j !== i))}
-                      className="ml-auto text-xs text-neutral-500 hover:underline">remove</button>
+                      className="ml-auto text-xs text-secondary hover:underline">remove</button>
                   </div>
                   {f.control === "select" && (
                     <input aria-label="Options" placeholder="stable, beta"
@@ -166,13 +166,13 @@ export function SchemaBuilder({ appId }: { appId: string }) {
               if ("error" in res && res.error) { setError(res.error); setBusy(false); return }
               router.push(`/apps/${appId}/templates`)
             }}
-            className="rounded bg-neutral-900 px-4 py-2 text-sm text-white disabled:opacity-60">
+            className="rounded bg-primary px-4 py-2 text-sm font-semibold text-on_primary disabled:opacity-60">
             {busy ? "Saving…" : "Save template"}
           </button>
         </div>
 
         <div>
-          <h2 className="text-sm font-medium uppercase tracking-wide text-neutral-500">
+          <h2 className="text-sm font-medium uppercase tracking-wide text-secondary">
             What authors will see
           </h2>
           <div className="mt-3 rounded border p-4">

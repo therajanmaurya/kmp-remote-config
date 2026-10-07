@@ -47,21 +47,21 @@ export function ConfigPreview({ display, payload, fields = [] }: Props) {
   const cta = picked.cta || null
 
   const Placeholder = ({ children }: { children: string }) => (
-    <span className="text-neutral-400">{children}</span>
+    <span className="text-secondary">{children}</span>
   )
 
   const content = (
     <>
       <p className="font-medium">{title ?? <Placeholder>Title</Placeholder>}</p>
-      <p className="mt-1 text-sm text-neutral-600">{body ?? <Placeholder>Body text</Placeholder>}</p>
+      <p className="mt-1 text-sm text-on_surface_variant">{body ?? <Placeholder>Body text</Placeholder>}</p>
       {cta && (
-        <button className="mt-3 w-full rounded bg-neutral-900 py-2 text-sm text-white">{cta}</button>
+        <button className="mt-3 w-full rounded bg-on_surface py-2 text-sm text-background">{cta}</button>
       )}
     </>
   )
 
   return (
-    <div data-testid="config-preview" className="rounded-[2rem] border-4 border-neutral-800 bg-neutral-50 p-3">
+    <div data-testid="config-preview" className="rounded-[2rem] border-4 border-on_surface bg-surface_variant p-3">
       <div className="relative h-[420px] overflow-hidden rounded-[1.5rem] bg-white">
         {display === "dialog" && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/30 p-4">
@@ -70,12 +70,12 @@ export function ConfigPreview({ display, payload, fields = [] }: Props) {
         )}
         {display === "bottom_sheet" && (
           <div className="absolute inset-x-0 bottom-0 rounded-t-2xl bg-white p-4 shadow-[0_-4px_16px_rgba(0,0,0,0.15)]">
-            <div className="mx-auto mb-3 h-1 w-10 rounded bg-neutral-300" />
+            <div className="mx-auto mb-3 h-1 w-10 rounded bg-outline" />
             {content}
           </div>
         )}
         {display === "banner" && (
-          <div className="absolute inset-x-0 top-0 border-b bg-amber-50 p-3">{content}</div>
+          <div className="absolute inset-x-0 top-0 border-b bg-warning_container p-3">{content}</div>
         )}
         {/* `fullscreen`, not `full_screen` — the token the seeded templates and the SDK's
             DisplayType actually use. The underscored spelling matched nothing. */}
@@ -84,12 +84,12 @@ export function ConfigPreview({ display, payload, fields = [] }: Props) {
           <div className="absolute inset-x-0 top-24 mx-3 rounded border bg-white p-3">{content}</div>
         )}
         {!["dialog", "bottom_sheet", "banner", "fullscreen", "inline"].includes(display) && (
-          <div className="flex h-full items-center justify-center p-6 text-center text-sm text-neutral-500">
+          <div className="flex h-full items-center justify-center p-6 text-center text-sm text-secondary">
             No preview for display “{display}”.
           </div>
         )}
       </div>
-      <p className="mt-2 text-center text-[11px] text-neutral-500">
+      <p className="mt-2 text-center text-[11px] text-secondary">
         Approximate — your app&apos;s theme decides the final appearance.
       </p>
     </div>

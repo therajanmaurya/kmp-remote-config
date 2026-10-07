@@ -19,11 +19,11 @@ export function IssueKeyButton({ appId }: { appId: string }) {
           if (res?.error) setError(res.error)
           setBusy(false)
         }}
-        className="rounded bg-neutral-900 px-3 py-1.5 text-sm text-white disabled:opacity-60"
+        className="rounded bg-primary px-3 py-1.5 text-sm font-semibold text-on_primary disabled:opacity-60"
       >
         {busy ? "Issuing…" : "Issue key"}
       </button>
-      {error && <p role="alert" className="mt-1 text-xs text-red-700">{error}</p>}
+      {error && <p role="alert" className="mt-1 text-xs text-on_error_container">{error}</p>}
     </div>
   )
 }
@@ -34,7 +34,7 @@ export function RevokeKeyButton({ keyId, appId }: { keyId: string; appId: string
 
   if (!confirming) {
     return (
-      <button onClick={() => setConfirming(true)} className="text-xs text-red-700 hover:underline">
+      <button onClick={() => setConfirming(true)} className="text-xs text-on_error_container hover:underline">
         Revoke
       </button>
     )
@@ -44,7 +44,7 @@ export function RevokeKeyButton({ keyId, appId }: { keyId: string; appId: string
     <span className="whitespace-nowrap text-xs">
       {/* Revocation is immediate and takes effect on the next SDK fetch, so it gets a
           confirm step rather than a bare button next to a key that is serving traffic. */}
-      <span className="mr-2 text-neutral-600">Revoke for good?</span>
+      <span className="mr-2 text-on_surface_variant">Revoke for good?</span>
       <button
         disabled={busy}
         onClick={async () => {
@@ -52,11 +52,11 @@ export function RevokeKeyButton({ keyId, appId }: { keyId: string; appId: string
           await revokeKey(keyId, appId)
           setBusy(false)
         }}
-        className="font-medium text-red-700 hover:underline disabled:opacity-60"
+        className="font-medium text-on_error_container hover:underline disabled:opacity-60"
       >
         {busy ? "…" : "Yes"}
       </button>
-      <button onClick={() => setConfirming(false)} className="ml-2 text-neutral-500 hover:underline">
+      <button onClick={() => setConfirming(false)} className="ml-2 text-secondary hover:underline">
         No
       </button>
     </span>

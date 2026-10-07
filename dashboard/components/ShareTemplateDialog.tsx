@@ -27,7 +27,7 @@ export function ShareControl({
   if (shared) {
     return (
       <div className="text-right">
-        <p className="text-xs text-neutral-500">
+        <p className="text-xs text-secondary">
           {sharedAt ? `shared ${new Date(sharedAt).toISOString().slice(0, 10)}` : "shared"}
           {authorLabel ? ` by ${authorLabel}` : ""}
         </p>
@@ -38,7 +38,7 @@ export function ShareControl({
             await unshareTemplate(appId, templateId)
             setBusy(false)
           }}
-          className="text-xs text-neutral-700 hover:underline disabled:opacity-60"
+          className="text-xs text-on_surface_variant hover:underline disabled:opacity-60"
         >
           {busy ? "…" : "Withdraw"}
         </button>
@@ -48,16 +48,16 @@ export function ShareControl({
 
   if (!open) {
     return (
-      <button onClick={() => setOpen(true)} className="text-xs text-neutral-700 hover:underline">
+      <button onClick={() => setOpen(true)} className="text-xs text-on_surface_variant hover:underline">
         Share
       </button>
     )
   }
 
   return (
-    <div className="mt-2 rounded border bg-neutral-50 p-3 text-left">
+    <div className="mt-2 rounded border bg-surface_variant p-3 text-left">
       <p className="text-sm font-medium">Share with the community?</p>
-      <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-neutral-700">
+      <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-on_surface_variant">
         <li>
           This template&apos;s structure and copy become <strong>visible to every other
           operator</strong> on rconfig.
@@ -78,10 +78,10 @@ export function ShareControl({
         placeholder="e.g. Acme Design"
         className="mt-1 w-full rounded border px-2 py-1 text-sm"
       />
-      <p className="mt-1 text-[11px] text-neutral-500">
+      <p className="mt-1 text-[11px] text-secondary">
         Shown on the catalog entry. Left blank, the template is listed without attribution.
       </p>
-      {error && <p role="alert" className="mt-2 text-xs text-red-700">{error}</p>}
+      {error && <p role="alert" className="mt-2 text-xs text-on_error_container">{error}</p>}
       <div className="mt-3 flex gap-2">
         <button
           disabled={busy}
@@ -92,7 +92,7 @@ export function ShareControl({
             if ("error" in res && res.error) setError(res.error)
             setBusy(false)
           }}
-          className="rounded bg-neutral-900 px-3 py-1.5 text-xs text-white disabled:opacity-60"
+          className="rounded bg-primary px-3 py-1.5 text-xs font-semibold text-on_primary disabled:opacity-60"
         >
           {busy ? "Sharing…" : "Share"}
         </button>

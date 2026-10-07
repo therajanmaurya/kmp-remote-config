@@ -15,9 +15,9 @@ export function UnpublishedPill({ appId, count }: { appId: string; count: number
     <Link
       href={`/apps/${appId}/publish`}
       data-testid="unpublished-pill"
-      className="inline-flex items-center gap-2 rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-sm font-medium text-amber-900 hover:border-amber-400"
+      className="inline-flex items-center gap-2 rounded-full border border-warning/30 bg-warning_container px-3 py-1 text-sm font-medium text-on_warning_container hover:border-warning"
     >
-      <span className="h-2 w-2 rounded-full bg-amber-500" aria-hidden />
+      <span className="h-2 w-2 rounded-full bg-warning_container0" aria-hidden />
       {count} unpublished {count === 1 ? "change" : "changes"}
     </Link>
   )

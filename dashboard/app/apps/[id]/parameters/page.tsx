@@ -3,6 +3,7 @@ export const runtime = "edge"
 import Link from "next/link"
 import { requireUser } from "@/lib/require-user"
 import { DeleteParameterButton, NewParameterForm } from "@/components/ParameterControls"
+import { Code, Empty, Hero, Panel, StatCards, Th } from "@/components/Surface"
 
 type Row = {
   id: string
@@ -14,10 +15,10 @@ type Row = {
 }
 
 const TYPE_STYLE: Record<string, string> = {
-  boolean: "bg-purple-50 text-purple-700 border-purple-200",
-  number: "bg-blue-50 text-blue-700 border-blue-200",
-  string: "bg-green-50 text-green-700 border-green-200",
-  json: "bg-amber-50 text-amber-800 border-amber-200",
+  boolean: "bg-primary_container text-on_primary_container border-primary/20",
+  number: "bg-secondary_container text-on_secondary_container border-outline_variant",
+  string: "bg-tertiary_container text-on_tertiary_container border-tertiary/20",
+  json: "bg-warning_container text-on_warning_container border-warning/20",
 }
 
 export default async function ParametersPage({ params }: { params: { id: string } }) {
@@ -30,80 +31,85 @@ export default async function ParametersPage({ params }: { params: { id: string 
     .order("key")
 
   const parameters = (data ?? []) as unknown as Row[]
+  const withOverrides = parameters.filter((p) => (p.parameter_value?.[0]?.count ?? 0) > 0).length
+  const { count: conditionCount } = await supabase
+    .from("condition").select("id", { count: "exact", head: true }).eq("app_id", params.id)
 
   return (
-    <main className="mx-auto max-w-4xl p-6">
-      <Link href={`/apps/${params.id}`} className="text-sm text-neutral-500 hover:underline">← app</Link>
+    <div className="p-6">
+      <Hero
+        eyebrow="Control plane · Parameters"
+        title={`${parameters.length} parameter${parameters.length === 1 ? "" : "s"}`}
+        subtitle="Typed values your app reads. Each has a default, and can vary by audience through a named condition."
+      />
 
-      <div className="mt-4 flex items-start justify-between gap-6">
-        <div>
-          <h1 className="text-xl font-semibold">Parameters</h1>
-          <p className="mt-1 text-sm text-neutral-500">
-            Typed values your app reads. Each has a default, and can vary by audience through a
-            condition.
-          </p>
-        </div>
-        <NewParameterForm appId={params.id} />
-      </div>
+      <StatCards
+        stats={[
+          { label: "Parameters", value: String(parameters.length) },
+          { label: "With overrides", value: String(withOverrides), hint: "vary by audience" },
+          { label: "Conditions available", value: String(conditionCount ?? 0) },
+          {
+            label: "Default for everyone",
+            value: String(parameters.length - withOverrides),
+            hint: "no condition attached",
+          },
+        ]}
+      />
 
-      {parameters.length === 0 ? (
-        <p className="mt-8 rounded border border-dashed p-6 text-center text-sm text-neutral-500">
-          No parameters yet. A parameter is a single typed value — a feature flag, a limit, a theme
-          name — that your app reads with <code className="font-mono">getBoolean</code>,{" "}
-          <code className="font-mono">getLong</code> or <code className="font-mono">getString</code>.
-        </p>
-      ) : (
-        <table className="mt-6 w-full text-left text-sm">
-          <thead className="border-b text-xs uppercase text-neutral-500">
-            <tr>
-              <th className="py-2 font-medium">Key</th>
-              <th className="py-2 font-medium">Type</th>
-              <th className="py-2 font-medium">Default</th>
-              <th className="py-2 font-medium">Overrides</th>
-              <th className="py-2 font-medium"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {parameters.map((p) => {
-              const overrides = p.parameter_value?.[0]?.count ?? 0
-              return (
-                <tr key={p.id} data-testid="parameter-row" className="border-b last:border-0">
-                  <td className="py-3">
-                    <Link href={`/apps/${params.id}/parameters/${p.id}`} className="font-mono hover:underline">
-                      {p.key}
-                    </Link>
-                    {p.description && <p className="text-xs text-neutral-500">{p.description}</p>}
-                  </td>
-                  <td className="py-3">
-                    <span className={`rounded border px-2 py-0.5 text-xs ${TYPE_STYLE[p.type] ?? ""}`}>
-                      {p.type}
-                    </span>
-                  </td>
-                  <td className="py-3">
-                    <code className="rounded bg-neutral-100 px-1.5 py-0.5 font-mono text-xs">
-                      {JSON.stringify(p.default_value)}
-                    </code>
-                  </td>
-                  <td className="py-3 text-neutral-600">
-                    {overrides === 0
-                      ? <span className="text-xs text-neutral-400">default for everyone</span>
-                      : <span className="text-xs">{overrides} condition{overrides === 1 ? "" : "s"}</span>}
-                  </td>
-                  <td className="py-3">
-                    <DeleteParameterButton appId={params.id} parameterId={p.id} keyName={p.key} />
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      )}
+      <Panel title="Parameters" action={<NewParameterForm appId={params.id} />}>
+        {parameters.length === 0 ? (
+          <Empty>
+            No parameters yet. A parameter is a single typed value — a feature flag, a limit, a
+            theme name — that your app reads with <Code>getBoolean</Code>, <Code>getLong</Code> or{" "}
+            <Code>getString</Code>.
+          </Empty>
+        ) : (
+          <table className="w-full">
+            <thead className="border-b border-outline_variant bg-surface_variant/50">
+              <tr><Th>Key</Th><Th>Type</Th><Th>Default</Th><Th>Conditions</Th><Th /></tr>
+            </thead>
+            <tbody className="divide-y divide-outline_variant">
+              {parameters.map((p) => {
+                const overrides = p.parameter_value?.[0]?.count ?? 0
+                return (
+                  <tr key={p.id} data-testid="parameter-row" className="hover:bg-surface_variant/40">
+                    <td className="px-5 py-3">
+                      <Link href={`/apps/${params.id}/parameters/${p.id}`}
+                        className="font-mono text-sm font-medium text-primary hover:underline">
+                        {p.key}
+                      </Link>
+                      {p.description && <p className="mt-0.5 text-xs text-secondary">{p.description}</p>}
+                    </td>
+                    <td className="px-5 py-3">
+                      <span className={`rounded border px-2 py-0.5 font-mono text-[11px] font-semibold ${TYPE_STYLE[p.type] ?? ""}`}>
+                        {p.type}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3"><Code>{JSON.stringify(p.default_value)}</Code></td>
+                    <td className="px-5 py-3 text-sm">
+                      {overrides === 0
+                        ? <span className="text-xs text-secondary">default for everyone</span>
+                        : <span className="inline-flex items-center gap-1 text-xs font-medium text-primary">
+                            <span className="material-symbols-outlined text-[14px]" aria-hidden>rule</span>
+                            {overrides} condition{overrides === 1 ? "" : "s"}
+                          </span>}
+                    </td>
+                    <td className="px-5 py-3 text-right">
+                      <DeleteParameterButton appId={params.id} parameterId={p.id} keyName={p.key} />
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        )}
+      </Panel>
 
-      <p className="mt-8 text-sm text-neutral-500">
-        Changes here go live when you <Link href={`/apps/${params.id}/publish`} className="underline">publish</Link>,
-        and you can check what a given device will receive in the{" "}
-        <Link href={`/apps/${params.id}/preview`} className="underline">preview</Link>.
+      <p className="mt-6 text-sm text-secondary">
+        Changes go live when you <Link href={`/apps/${params.id}/publish`} className="font-medium text-primary underline">publish</Link>.
+        Check what a device will receive in the{" "}
+        <Link href={`/apps/${params.id}/preview`} className="font-medium text-primary underline">preview</Link>.
       </p>
-    </main>
+    </div>
   )
 }

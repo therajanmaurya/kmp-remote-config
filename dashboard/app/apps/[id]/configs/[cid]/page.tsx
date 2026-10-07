@@ -24,7 +24,7 @@ export default async function ConfigDetailPage({
     return (
       <main className="mx-auto max-w-3xl p-6">
         <h1 className="text-xl font-semibold">Not found</h1>
-        <p className="mt-2 text-sm text-neutral-500">No config with that id is available to you.</p>
+        <p className="mt-2 text-sm text-secondary">No config with that id is available to you.</p>
       </main>
     )
   }
@@ -51,12 +51,12 @@ export default async function ConfigDetailPage({
   return (
     <>
       <div className="mx-auto max-w-5xl px-6 pt-6">
-        <Link href={`/apps/${params.id}/configs`} className="text-sm text-neutral-500 hover:underline">
+        <Link href={`/apps/${params.id}/configs`} className="text-sm text-secondary hover:underline">
           ← configs
         </Link>
         <p className="mt-2 text-sm">
           Status:{" "}
-          <span className={config.is_enabled ? "font-medium text-green-700" : "font-medium text-neutral-600"}>
+          <span className={config.is_enabled ? "font-medium text-on_tertiary_container" : "font-medium text-on_surface_variant"}>
             {config.is_enabled ? "enabled" : "disabled"}
           </span>
         </p>
@@ -83,7 +83,7 @@ export default async function ConfigDetailPage({
         }}
       />
       <div className="mx-auto max-w-5xl px-6 pb-10">
-        <h2 className="text-sm font-medium uppercase tracking-wide text-neutral-500">
+        <h2 className="text-sm font-medium uppercase tracking-wide text-secondary">
           Impressions — last 14 days
         </h2>
         <div className="mt-3"><ImpressionChart data={chart} /></div>

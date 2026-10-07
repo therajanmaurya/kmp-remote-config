@@ -18,7 +18,7 @@ export function NewConditionForm({ appId }: { appId: string }) {
   if (!open) {
     return (
       <button data-testid="new-condition" onClick={() => setOpen(true)}
-        className="rounded bg-neutral-900 px-3 py-1.5 text-sm text-white hover:bg-neutral-800">
+        className="rounded bg-primary px-3 py-1.5 text-sm font-semibold text-on_primary hover:bg-primary/90">
         New condition
       </button>
     )
@@ -43,7 +43,7 @@ export function NewConditionForm({ appId }: { appId: string }) {
           onChange={(e) => setForm({ ...form, name: e.target.value })}
           placeholder="Android beta users"
           className="mt-1 w-full rounded border px-3 py-2 text-sm" />
-        <span className="mt-1 block text-xs text-neutral-500">
+        <span className="mt-1 block text-xs text-secondary">
           How you will recognise it when attaching it to a parameter.
         </span>
       </label>
@@ -64,7 +64,7 @@ export function NewConditionForm({ appId }: { appId: string }) {
             </label>
           ))}
         </div>
-        <span className="mt-1 block text-xs text-neutral-500">None selected means every platform.</span>
+        <span className="mt-1 block text-xs text-secondary">None selected means every platform.</span>
       </fieldset>
 
       <label className="text-sm">
@@ -72,7 +72,7 @@ export function NewConditionForm({ appId }: { appId: string }) {
         <input type="number" value={form.priority}
           onChange={(e) => setForm({ ...form, priority: Number(e.target.value) })}
           className="mt-1 w-full rounded border px-3 py-2 text-sm" />
-        <span className="mt-1 block text-xs text-neutral-500">
+        <span className="mt-1 block text-xs text-secondary">
           Default order when attaching. Each parameter keeps its own order.
         </span>
       </label>
@@ -90,14 +90,14 @@ export function NewConditionForm({ appId }: { appId: string }) {
           placeholder="(none)" className="mt-1 w-full rounded border px-3 py-2 text-sm" />
       </label>
 
-      {err && <p className="text-sm text-red-600 md:col-span-2" role="alert" data-testid="condition-error">{err}</p>}
+      {err && <p className="text-sm text-error md:col-span-2" role="alert" data-testid="condition-error">{err}</p>}
 
       <div className="flex gap-2 md:col-span-2">
         <button disabled={busy} data-testid="save-condition"
-          className="rounded bg-neutral-900 px-4 py-2 text-sm text-white disabled:opacity-50">
+          className="rounded bg-primary px-4 py-2 text-sm font-semibold text-on_primary disabled:opacity-50">
           {busy ? "Saving…" : "Create condition"}
         </button>
-        <button type="button" onClick={() => setOpen(false)} className="text-sm text-neutral-500 hover:underline">
+        <button type="button" onClick={() => setOpen(false)} className="text-sm text-secondary hover:underline">
           Cancel
         </button>
       </div>
@@ -114,7 +114,7 @@ export function DeleteConditionButton({
 
   if (!confirming) {
     return (
-      <button onClick={() => setConfirming(true)} className="text-xs text-neutral-500 hover:text-red-600 hover:underline">
+      <button onClick={() => setConfirming(true)} className="text-xs text-secondary hover:text-error hover:underline">
         Delete
       </button>
     )
@@ -125,17 +125,17 @@ export function DeleteConditionButton({
       {/* Naming the consequence. Deleting a condition cascades to every override using it,
           which is correct — an override whose condition is gone can never match — but an
           operator deleting "iOS users" should know they are removing values from N parameters. */}
-      <span className="text-red-700">
+      <span className="text-on_error_container">
         {usedBy > 0
           ? `Delete "${name}" and its override${usedBy === 1 ? "" : "s"} on ${usedBy} parameter${usedBy === 1 ? "" : "s"}?`
           : `Delete "${name}"?`}
       </span>
       <button disabled={busy}
         onClick={async () => { setBusy(true); await deleteCondition(appId, conditionId); router.refresh() }}
-        className="rounded bg-red-600 px-2 py-1 text-white disabled:opacity-50">
+        className="rounded bg-error px-2 py-1 text-white disabled:opacity-50">
         Delete
       </button>
-      <button onClick={() => setConfirming(false)} className="text-neutral-500 hover:underline">Cancel</button>
+      <button onClick={() => setConfirming(false)} className="text-secondary hover:underline">Cancel</button>
     </span>
   )
 }

@@ -23,10 +23,10 @@ export default async function AppOverviewPage({ params }: { params: { id: string
     return (
       <main className="mx-auto max-w-3xl p-6">
         <h1 className="text-xl font-semibold">Not found</h1>
-        <p className="mt-2 text-sm text-neutral-500">
+        <p className="mt-2 text-sm text-secondary">
           No app with that id is available to you.
         </p>
-        <Link href="/" className="mt-4 inline-block text-sm text-neutral-700 hover:underline">
+        <Link href="/" className="mt-4 inline-block text-sm text-on_surface_variant hover:underline">
           ← all apps
         </Link>
       </main>
@@ -57,26 +57,26 @@ export default async function AppOverviewPage({ params }: { params: { id: string
 
   return (
     <main className="mx-auto max-w-4xl p-6">
-      <Link href="/" className="text-sm text-neutral-500 hover:underline">← all apps</Link>
+      <Link href="/" className="text-sm text-secondary hover:underline">← all apps</Link>
       <h1 className="mt-2 text-xl font-semibold">{app.display_name}</h1>
-      <p className="font-mono text-xs text-neutral-500">{app.slug}</p>
+      <p className="font-mono text-xs text-secondary">{app.slug}</p>
 
       <div className="mt-6 grid gap-3 sm:grid-cols-3">
-        <Link href={`/apps/${params.id}/configs`} className="rounded border p-4 hover:border-neutral-400">
+        <Link href={`/apps/${params.id}/configs`} className="rounded border p-4 hover:border-outline">
           <p className="text-2xl font-semibold">{activeCount ?? 0}</p>
-          <p className="text-xs text-neutral-500">active configs</p>
+          <p className="text-xs text-secondary">active configs</p>
         </Link>
-        <Link href={`/apps/${params.id}/keys`} className="rounded border p-4 hover:border-neutral-400">
+        <Link href={`/apps/${params.id}/keys`} className="rounded border p-4 hover:border-outline">
           <p className="text-2xl font-semibold">{keyCount ?? 0}</p>
-          <p className="text-xs text-neutral-500">live keys</p>
+          <p className="text-xs text-secondary">live keys</p>
         </Link>
-        <Link href={`/apps/${params.id}/templates`} className="rounded border p-4 hover:border-neutral-400">
+        <Link href={`/apps/${params.id}/templates`} className="rounded border p-4 hover:border-outline">
           <p className="text-2xl font-semibold">{templateCount ?? 0}</p>
-          <p className="text-xs text-neutral-500">custom templates</p>
+          <p className="text-xs text-secondary">custom templates</p>
         </Link>
       </div>
 
-      <h2 className="mt-8 text-sm font-medium uppercase tracking-wide text-neutral-500">
+      <h2 className="mt-8 text-sm font-medium uppercase tracking-wide text-secondary">
         Impressions — last 14 days
       </h2>
       <div className="mt-3"><ImpressionChart data={chart} /></div>

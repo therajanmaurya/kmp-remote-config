@@ -11,6 +11,9 @@ import { NextResponse, type NextRequest } from "next/server"
  * Postgres bucket (migration 008), not at this layer.
  */
 export async function middleware(request: NextRequest) {
+  // A server component cannot read its own pathname, and the app layout needs it to highlight
+  // the current sidebar entry. Stamping it here is the supported way to get it there.
+  request.headers.set("x-pathname", request.nextUrl.pathname)
   let response = NextResponse.next({ request: { headers: request.headers } })
 
   const supabase = createServerClient(

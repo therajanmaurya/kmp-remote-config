@@ -33,9 +33,9 @@ export default async function PreviewPage({
 
   return (
     <main className="mx-auto max-w-4xl p-6">
-      <Link href={`/apps/${params.id}`} className="text-sm text-neutral-500 hover:underline">← app</Link>
+      <Link href={`/apps/${params.id}`} className="text-sm text-secondary hover:underline">← app</Link>
       <h1 className="mt-4 text-xl font-semibold">Device preview</h1>
-      <p className="mt-1 text-sm text-neutral-500">
+      <p className="mt-1 text-sm text-secondary">
         Resolved from the published snapshot using the same code the edge function runs, so this
         cannot disagree with what devices actually receive.
       </p>
@@ -71,40 +71,40 @@ export default async function PreviewPage({
             className="mt-1 w-full rounded border px-2 py-1.5 text-sm" />
         </label>
         <div className="md:col-span-5">
-          <button className="rounded bg-neutral-900 px-4 py-2 text-sm text-white" data-testid="preview-run">
+          <button className="rounded bg-primary px-4 py-2 text-sm font-semibold text-on_primary" data-testid="preview-run">
             Resolve
           </button>
         </div>
       </form>
 
       <section className="mt-6">
-        <h2 className="text-sm font-medium text-neutral-700">
+        <h2 className="text-sm font-medium text-on_surface_variant">
           Configs {result.liveVersion ? `(from v${result.liveVersion})` : ""}
         </h2>
         {result.note && (
           // An empty result with no explanation reads as a broken page. Saying WHY it is empty
           // is the difference between a tool and a dead end.
-          <p data-testid="preview-note" className="mt-2 rounded border border-dashed p-4 text-sm text-neutral-500">
+          <p data-testid="preview-note" className="mt-2 rounded border border-dashed p-4 text-sm text-secondary">
             {result.note}
           </p>
         )}
         {result.configs.length > 0 && (
           <pre data-testid="preview-configs"
-            className="mt-2 overflow-x-auto rounded bg-neutral-900 p-4 text-xs text-neutral-100">
+            className="mt-2 overflow-x-auto rounded bg-code_background p-4 font-mono text-xs text-code_on_background">
             {JSON.stringify(result.configs, null, 2)}
           </pre>
         )}
       </section>
 
       <section className="mt-6">
-        <h2 className="text-sm font-medium text-neutral-700">Parameters</h2>
+        <h2 className="text-sm font-medium text-on_surface_variant">Parameters</h2>
         {Object.keys(result.parameters).length === 0 ? (
-          <p className="mt-2 rounded border border-dashed p-4 text-sm text-neutral-500">
+          <p className="mt-2 rounded border border-dashed p-4 text-sm text-secondary">
             No parameters defined for this app.
           </p>
         ) : (
           <pre data-testid="preview-parameters"
-            className="mt-2 overflow-x-auto rounded bg-neutral-900 p-4 text-xs text-neutral-100">
+            className="mt-2 overflow-x-auto rounded bg-code_background p-4 font-mono text-xs text-code_on_background">
             {JSON.stringify(result.parameters, null, 2)}
           </pre>
         )}

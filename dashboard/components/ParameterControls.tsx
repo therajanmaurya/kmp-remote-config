@@ -29,7 +29,7 @@ export function NewParameterForm({ appId }: { appId: string }) {
   if (!open) {
     return (
       <button data-testid="new-parameter" onClick={() => setOpen(true)}
-        className="rounded bg-neutral-900 px-3 py-1.5 text-sm text-white hover:bg-neutral-800">
+        className="rounded bg-primary px-3 py-1.5 text-sm font-semibold text-on_primary hover:bg-primary/90">
         New parameter
       </button>
     )
@@ -53,7 +53,7 @@ export function NewParameterForm({ appId }: { appId: string }) {
         <input data-testid="parameter-key" value={key} onChange={(e) => setKey(e.target.value)}
           placeholder="welcome_banner_enabled"
           className="mt-1 w-full rounded border px-3 py-2 font-mono text-sm" />
-        <span className="mt-1 block text-xs text-neutral-500">
+        <span className="mt-1 block text-xs text-secondary">
           lower_snake_case. This is what your app passes to getBoolean / getString.
         </span>
       </label>
@@ -79,7 +79,7 @@ export function NewParameterForm({ appId }: { appId: string }) {
         <input data-testid="parameter-default" value={def} onChange={(e) => setDef(e.target.value)}
           placeholder={PLACEHOLDER[type]}
           className="mt-1 w-full rounded border px-3 py-2 font-mono text-sm" />
-        <span className="mt-1 block text-xs text-neutral-500">
+        <span className="mt-1 block text-xs text-secondary">
           Served when no condition matches. Your app&apos;s bundled default still applies before the
           first fetch lands.
         </span>
@@ -91,14 +91,14 @@ export function NewParameterForm({ appId }: { appId: string }) {
           placeholder="optional" className="mt-1 w-full rounded border px-3 py-2 text-sm" />
       </label>
 
-      {err && <p className="text-sm text-red-600 md:col-span-2" role="alert" data-testid="parameter-error">{err}</p>}
+      {err && <p className="text-sm text-error md:col-span-2" role="alert" data-testid="parameter-error">{err}</p>}
 
       <div className="flex gap-2 md:col-span-2">
         <button disabled={busy} data-testid="save-parameter"
-          className="rounded bg-neutral-900 px-4 py-2 text-sm text-white disabled:opacity-50">
+          className="rounded bg-primary px-4 py-2 text-sm font-semibold text-on_primary disabled:opacity-50">
           {busy ? "Saving…" : "Create parameter"}
         </button>
-        <button type="button" onClick={() => setOpen(false)} className="text-sm text-neutral-500 hover:underline">
+        <button type="button" onClick={() => setOpen(false)} className="text-sm text-secondary hover:underline">
           Cancel
         </button>
       </div>
@@ -110,14 +110,14 @@ export function DeleteParameterButton({ appId, parameterId, keyName }: { appId: 
   const router = useRouter()
   const [confirming, setConfirming] = useState(false)
   if (!confirming) {
-    return <button onClick={() => setConfirming(true)} className="text-xs text-neutral-500 hover:text-red-600 hover:underline">Delete</button>
+    return <button onClick={() => setConfirming(true)} className="text-xs text-secondary hover:text-error hover:underline">Delete</button>
   }
   return (
     <span className="inline-flex items-center gap-2 text-xs">
-      <span className="text-red-700">Delete {keyName}?</span>
+      <span className="text-on_error_container">Delete {keyName}?</span>
       <button onClick={async () => { await deleteParameter(appId, parameterId); router.refresh() }}
-        className="rounded bg-red-600 px-2 py-1 text-white">Delete</button>
-      <button onClick={() => setConfirming(false)} className="text-neutral-500 hover:underline">Cancel</button>
+        className="rounded bg-error px-2 py-1 text-white">Delete</button>
+      <button onClick={() => setConfirming(false)} className="text-secondary hover:underline">Cancel</button>
     </span>
   )
 }
@@ -144,8 +144,8 @@ export function OverrideEditor({
 
   return (
     <div className="mt-4">
-      <h2 className="text-sm font-medium text-neutral-700">Conditional overrides</h2>
-      <p className="mt-1 text-xs text-neutral-500">
+      <h2 className="text-sm font-medium text-on_surface_variant">Conditional overrides</h2>
+      <p className="mt-1 text-xs text-secondary">
         Checked in priority order, lowest first. The first condition that matches wins; if none
         match, the default above is served.
       </p>
@@ -154,16 +154,16 @@ export function OverrideEditor({
         <ol className="mt-3 divide-y rounded border">
           {overrides.map((o) => (
             <li key={o.id} data-testid="override-row" className="flex items-center gap-3 p-3 text-sm">
-              <span className="w-8 font-mono text-xs text-neutral-400">{o.priority}</span>
+              <span className="w-8 font-mono text-xs text-secondary">{o.priority}</span>
               <span className="flex-1">
                 if <strong>{nameOf(o.condition_id)}</strong> then{" "}
-                <code className="rounded bg-neutral-100 px-1.5 py-0.5 font-mono text-xs">
+                <code className="rounded bg-surface_variant px-1.5 py-0.5 font-mono text-xs">
                   {JSON.stringify(o.value)}
                 </code>
               </span>
               <button
                 onClick={async () => { await removeOverride(appId, o.id); router.refresh() }}
-                className="text-xs text-neutral-500 hover:text-red-600 hover:underline">
+                className="text-xs text-secondary hover:text-error hover:underline">
                 Remove
               </button>
             </li>
@@ -172,7 +172,7 @@ export function OverrideEditor({
       )}
 
       {conditions.length === 0 ? (
-        <p className="mt-3 rounded border border-dashed p-4 text-sm text-neutral-500">
+        <p className="mt-3 rounded border border-dashed p-4 text-sm text-secondary">
           No conditions defined yet. Create one on the Conditions page, then attach it here.
         </p>
       ) : (
@@ -208,10 +208,10 @@ export function OverrideEditor({
               className="mt-1 block w-24 rounded border px-2 py-1.5 text-sm" />
           </label>
           <button disabled={busy} data-testid="save-override"
-            className="rounded bg-neutral-900 px-3 py-1.5 text-sm text-white disabled:opacity-50">
+            className="rounded bg-primary px-3 py-1.5 text-sm font-semibold text-on_primary disabled:opacity-50">
             {busy ? "Adding…" : "Add override"}
           </button>
-          {err && <p className="w-full text-sm text-red-600" role="alert" data-testid="override-error">{err}</p>}
+          {err && <p className="w-full text-sm text-error" role="alert" data-testid="override-error">{err}</p>}
         </form>
       )}
     </div>

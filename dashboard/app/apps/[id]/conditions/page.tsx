@@ -4,6 +4,7 @@ import Link from "next/link"
 import { requireUser } from "@/lib/require-user"
 import { describePredicate, type Predicate } from "@/lib/predicate"
 import { DeleteConditionButton, NewConditionForm } from "@/components/ConditionControls"
+import { Code, Empty, Hero, Panel, StatCards, Th } from "@/components/Surface"
 
 type Row = {
   id: string
@@ -16,8 +17,8 @@ type Row = {
 export default async function ConditionsPage({ params }: { params: { id: string } }) {
   const { supabase } = await requireUser()
 
-  // The usage count is fetched with the row, not separately: it is the single most important
-  // column on this page. A named condition only earns its name if you can see what it affects.
+  // The usage count is fetched with the row, not separately: it is the most important column
+  // on this page. A named condition only earns its name if you can see what it affects.
   const { data } = await supabase
     .from("condition")
     .select("id, name, predicate, priority, parameter_value(count)")
@@ -25,76 +26,88 @@ export default async function ConditionsPage({ params }: { params: { id: string 
     .order("priority")
 
   const conditions = (data ?? []) as unknown as Row[]
+  const attached = conditions.filter((c) => (c.parameter_value?.[0]?.count ?? 0) > 0).length
+  const totalUses = conditions.reduce((n, c) => n + (c.parameter_value?.[0]?.count ?? 0), 0)
 
   return (
-    <main className="mx-auto max-w-4xl p-6">
-      <Link href={`/apps/${params.id}`} className="text-sm text-neutral-500 hover:underline">← app</Link>
+    <div className="p-6">
+      <Hero
+        eyebrow="Targeting engine · Conditions"
+        title={`${conditions.length} named rule${conditions.length === 1 ? "" : "s"}`}
+        subtitle="Describe an audience once and reuse it. A parameter stores a reference to a condition, never a copy of its rule."
+      />
 
-      <div className="mt-4 flex items-start justify-between gap-6">
-        <div>
-          <h1 className="text-xl font-semibold">Conditions</h1>
-          <p className="mt-1 text-sm text-neutral-500">
-            Named audience rules. Define one once and attach it to as many parameters as you like.
-          </p>
-        </div>
-        <NewConditionForm appId={params.id} />
-      </div>
+      <StatCards
+        stats={[
+          { label: "Conditions", value: String(conditions.length) },
+          { label: "In use", value: String(attached), hint: "attached to a parameter" },
+          { label: "Parameter attachments", value: String(totalUses) },
+          {
+            label: "Unattached",
+            value: String(conditions.length - attached),
+            hint: "usually a half-finished change",
+          },
+        ]}
+      />
 
-      {conditions.length === 0 ? (
-        <p className="mt-8 rounded border border-dashed p-6 text-center text-sm text-neutral-500">
-          No conditions yet. A condition describes an audience — &ldquo;Android beta users&rdquo;,
-          &ldquo;EU region&rdquo; — and parameters use it to vary their value.
+      <Panel title="Conditions" action={<NewConditionForm appId={params.id} />}>
+        {conditions.length === 0 ? (
+          <Empty>
+            No conditions yet. A condition describes an audience — &ldquo;Android beta
+            users&rdquo;, &ldquo;EU region&rdquo; — and parameters use it to vary their value.
+          </Empty>
+        ) : (
+          <table className="w-full">
+            <thead className="border-b border-outline_variant bg-surface_variant/50">
+              <tr><Th>Name</Th><Th>Rule</Th><Th>Used by</Th><Th>Priority</Th><Th /></tr>
+            </thead>
+            <tbody className="divide-y divide-outline_variant">
+              {conditions.map((c) => {
+                const usedBy = c.parameter_value?.[0]?.count ?? 0
+                return (
+                  <tr key={c.id} data-testid="condition-row" className="align-top hover:bg-surface_variant/40">
+                    <td className="px-5 py-3 text-sm font-semibold">{c.name}</td>
+                    <td className="px-5 py-3">
+                      {/* Plain language, not raw JSON: showing the object would make every
+                          condition look alike at a glance, which is the one thing a
+                          reusable-condition list cannot afford. */}
+                      <Code>{describePredicate(c.predicate)}</Code>
+                    </td>
+                    <td className="px-5 py-3">
+                      {usedBy === 0 ? (
+                        <span className="text-xs text-secondary">not attached yet</span>
+                      ) : (
+                        <Link href={`/apps/${params.id}/parameters`}
+                          className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+                          {usedBy} parameter{usedBy === 1 ? "" : "s"}
+                          <span className="material-symbols-outlined text-[14px]" aria-hidden>open_in_new</span>
+                        </Link>
+                      )}
+                    </td>
+                    <td className="px-5 py-3">
+                      <span className="rounded bg-warning_container px-2 py-0.5 font-mono text-[11px] font-semibold text-on_warning_container">
+                        {c.priority}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3 text-right">
+                      <DeleteConditionButton appId={params.id} conditionId={c.id} name={c.name} usedBy={usedBy} />
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        )}
+      </Panel>
+
+      <div className="mt-6 flex gap-3 rounded-lg border border-outline_variant bg-surface p-4 text-sm text-on_surface_variant">
+        <span className="material-symbols-outlined text-[20px] text-primary" aria-hidden>info</span>
+        <p>
+          <strong className="font-semibold text-on_surface">Edit once, change everywhere.</strong>{" "}
+          Editing a condition updates every parameter that references it — that reuse is the whole
+          reason conditions are named.
         </p>
-      ) : (
-        <table className="mt-6 w-full text-left text-sm">
-          <thead className="border-b text-xs uppercase text-neutral-500">
-            <tr>
-              <th className="py-2 font-medium">Name</th>
-              <th className="py-2 font-medium">Rule</th>
-              <th className="py-2 font-medium">Used by</th>
-              <th className="py-2 font-medium">Priority</th>
-              <th className="py-2 font-medium"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {conditions.map((c) => {
-              const usedBy = c.parameter_value?.[0]?.count ?? 0
-              return (
-                <tr key={c.id} data-testid="condition-row" className="border-b last:border-0 align-top">
-                  <td className="py-3 font-medium">{c.name}</td>
-                  <td className="py-3 text-neutral-600">
-                    <code className="rounded bg-neutral-100 px-1.5 py-0.5 text-xs">
-                      {describePredicate(c.predicate)}
-                    </code>
-                  </td>
-                  <td className="py-3">
-                    {usedBy === 0 ? (
-                      // Worth surfacing rather than showing 0 quietly: an unused condition is
-                      // usually a half-finished change, not a deliberate state.
-                      <span className="text-xs text-neutral-400">not attached yet</span>
-                    ) : (
-                      <Link href={`/apps/${params.id}/parameters`} className="text-xs underline">
-                        {usedBy} parameter{usedBy === 1 ? "" : "s"}
-                      </Link>
-                    )}
-                  </td>
-                  <td className="py-3 text-neutral-600">{c.priority}</td>
-                  <td className="py-3">
-                    <DeleteConditionButton appId={params.id} conditionId={c.id} name={c.name} usedBy={usedBy} />
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      )}
-
-      <p className="mt-8 rounded border bg-neutral-50 p-4 text-sm text-neutral-600">
-        <strong className="font-medium">Edit once, change everywhere.</strong> A parameter stores a
-        reference to a condition, never a copy of its rule — so editing &ldquo;Android beta
-        users&rdquo; updates every parameter that uses it. That reuse is the whole reason conditions
-        are named.
-      </p>
-    </main>
+      </div>
+    </div>
   )
 }

@@ -135,3 +135,34 @@ export async function removeOverride(appId: string, overrideId: string) {
   revalidatePath(`/apps/${appId}`, "layout")
   return { ok: true }
 }
+
+export type Explanation = {
+  found: boolean
+  value: unknown
+  source: "condition" | "default"
+  condition_id: string | null
+  condition_name: string | null
+  priority?: number
+}
+
+/**
+ * Which rule decides this parameter for a given audience.
+ *
+ * Delegates to `resolve_parameter_explain`, which reuses the same `condition_matches` the edge
+ * function resolves with — so the explanation can never describe a decision different from the
+ * one a device would get.
+ */
+export async function explainParameter(
+  parameterId: string,
+  audience: { platform: string; app_version: string; screen: string | null },
+): Promise<Explanation> {
+  const { supabase } = await requireUser()
+  const { data, error } = await supabase.rpc("resolve_parameter_explain", {
+    p_parameter: parameterId,
+    p_audience: audience,
+  })
+  if (error || !data) {
+    return { found: false, value: null, source: "default", condition_id: null, condition_name: null }
+  }
+  return data as Explanation
+}

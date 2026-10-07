@@ -23,11 +23,11 @@ export function PublishButton({ appId, count }: { appId: string; count: number }
           else router.refresh()
           setBusy(false)
         }}
-        className="rounded bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
+        className="rounded bg-primary px-4 py-2 text-sm font-semibold text-on_primary hover:bg-primary/90 disabled:opacity-50"
       >
         {busy ? "Publishing…" : `Publish ${count} ${count === 1 ? "change" : "changes"} to production`}
       </button>
-      {err && <p className="text-sm text-red-600" role="alert">{err}</p>}
+      {err && <p className="text-sm text-error" role="alert">{err}</p>}
     </div>
   )
 }
@@ -42,7 +42,7 @@ export function RollbackButton({ appId, version }: { appId: string; version: num
     return (
       <button
         onClick={() => setConfirming(true)}
-        className="rounded border px-2 py-1 text-xs hover:border-neutral-400"
+        className="rounded border px-2 py-1 text-xs hover:border-outline"
       >
         Roll back to this version
       </button>
@@ -60,14 +60,14 @@ export function RollbackButton({ appId, version }: { appId: string; version: num
           else router.refresh()
           setBusy(false); setConfirming(false)
         }}
-        className="rounded bg-neutral-900 px-2 py-1 text-xs text-white disabled:opacity-50"
+        className="rounded bg-primary px-2 py-1 text-xs font-semibold text-on_primary disabled:opacity-50"
       >
         Confirm
       </button>
-      <button onClick={() => setConfirming(false)} className="text-xs text-neutral-500 hover:underline">
+      <button onClick={() => setConfirming(false)} className="text-xs text-secondary hover:underline">
         Cancel
       </button>
-      {err && <span className="text-xs text-red-600" role="alert">{err}</span>}
+      {err && <span className="text-xs text-error" role="alert">{err}</span>}
     </span>
   )
 }

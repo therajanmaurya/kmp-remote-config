@@ -7,7 +7,7 @@ export type DayCount = { day: string; count: number }
 export function ImpressionChart({ data }: { data: DayCount[] }) {
   if (data.length === 0) {
     return (
-      <p className="rounded border border-dashed p-6 text-center text-sm text-neutral-500">
+      <p className="rounded border border-dashed p-6 text-center text-sm text-secondary">
         No impressions recorded yet.
       </p>
     )

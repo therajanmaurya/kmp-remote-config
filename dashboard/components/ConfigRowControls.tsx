@@ -25,7 +25,7 @@ export function EnableSwitch({
         if (!("error" in res && res.error)) setOn(next)
         setBusy(false)
       }}
-      className={`inline-flex h-5 w-9 items-center rounded-full transition ${on ? "bg-green-600" : "bg-neutral-300"} disabled:opacity-60`}
+      className={`inline-flex h-5 w-9 items-center rounded-full transition ${on ? "bg-tertiary" : "bg-outline"} disabled:opacity-60`}
     >
       <span className={`h-4 w-4 rounded-full bg-white transition ${on ? "translate-x-4" : "translate-x-0.5"}`} />
     </button>
@@ -44,7 +44,7 @@ export function DuplicateButton({ appId, configId }: { appId: string; configId: 
         setBusy(false)
         if ("id" in res && res.id) router.push(`/apps/${appId}/configs/${res.id}`)
       }}
-      className="text-xs text-neutral-600 hover:underline disabled:opacity-60"
+      className="text-xs text-on_surface_variant hover:underline disabled:opacity-60"
     >
       {busy ? "…" : "Duplicate"}
     </button>

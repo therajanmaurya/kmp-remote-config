@@ -19,23 +19,23 @@ export default async function TemplatesPage({ params }: { params: { id: string }
 
   return (
     <main className="mx-auto max-w-4xl p-6">
-      <Link href={`/apps/${params.id}`} className="text-sm text-neutral-500 hover:underline">← app</Link>
+      <Link href={`/apps/${params.id}`} className="text-sm text-secondary hover:underline">← app</Link>
       <div className="mt-2 flex items-center justify-between">
         <h1 className="text-xl font-semibold">Custom templates</h1>
         <div className="flex items-center gap-3">
-          <Link href="/community" className="text-sm text-neutral-600 hover:underline">Browse community</Link>
+          <Link href="/community" className="text-sm text-on_surface_variant hover:underline">Browse community</Link>
           <Link href={`/apps/${params.id}/templates/new`}
-            className="rounded bg-neutral-900 px-3 py-1.5 text-sm text-white">New template</Link>
+            className="rounded bg-primary px-3 py-1.5 text-sm font-semibold text-on_primary">New template</Link>
         </div>
       </div>
 
-      <p className="mt-2 max-w-2xl text-sm text-neutral-500">
+      <p className="mt-2 max-w-2xl text-sm text-secondary">
         A template defines the fields an operator fills in to author a config. Yours are
         private to this app until you choose to share them.
       </p>
 
       {!templates?.length ? (
-        <p className="mt-6 rounded border border-dashed p-8 text-center text-sm text-neutral-500">
+        <p className="mt-6 rounded border border-dashed p-8 text-center text-sm text-secondary">
           No custom templates yet. The 15 built-in types are always available when authoring.
         </p>
       ) : (
@@ -45,16 +45,16 @@ export default async function TemplatesPage({ params }: { params: { id: string }
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="font-medium">{t.display_name}</p>
-                  <p className="mt-0.5 text-sm text-neutral-500">{t.description}</p>
+                  <p className="mt-0.5 text-sm text-secondary">{t.description}</p>
                   <p className="mt-1 flex items-center gap-2 text-xs">
                     <span data-testid="visibility" className={`rounded px-2 py-0.5 ${
-                      t.visibility === "community" ? "bg-blue-100 text-blue-900" : "bg-neutral-100 text-neutral-700"
+                      t.visibility === "community" ? "bg-blue-100 text-blue-900" : "bg-surface_variant text-on_surface_variant"
                     }`}>
                       {t.visibility}
                     </span>
-                    {!t.renders_ui && <span className="text-neutral-500">value only</span>}
+                    {!t.renders_ui && <span className="text-secondary">value only</span>}
                     {t.forked_from && (
-                      <span className="font-mono text-neutral-400">forked from {t.forked_from}</span>
+                      <span className="font-mono text-secondary">forked from {t.forked_from}</span>
                     )}
                   </p>
                 </div>

@@ -3,6 +3,7 @@ export const runtime = "edge"
 import Link from "next/link"
 import { requireUser } from "@/lib/require-user"
 import { RollbackButton } from "@/components/PublishControls"
+import { Empty, Hero, Panel, StatCards, Th } from "@/components/Surface"
 
 type VersionRow = {
   version: number
@@ -30,63 +31,73 @@ export default async function HistoryPage({ params }: { params: { id: string } }
   const live = versions[0]?.version ?? null
 
   return (
-    <main className="mx-auto max-w-4xl p-6">
-      <Link href={`/apps/${params.id}`} className="text-sm text-neutral-500 hover:underline">← app</Link>
-      <h1 className="mt-4 text-xl font-semibold">Activity &amp; version history</h1>
-      <p className="mt-1 text-sm text-neutral-500">
-        {versions.length === 0
-          ? "Nothing published yet."
-          : `${versions.length} published ${versions.length === 1 ? "revision" : "revisions"}. Every revision is immutable.`}
-      </p>
+    <div className="p-6">
+      <Hero
+        eyebrow="Activity · Version history"
+        title={`${versions.length} published revision${versions.length === 1 ? "" : "s"}`}
+        subtitle="An immutable audit trail. Every revision is retained, and a rollback publishes a new revision rather than erasing one."
+      />
 
-      {versions.length > 0 && (
-        <table className="mt-6 w-full text-left text-sm">
-          <thead className="border-b text-xs uppercase text-neutral-500">
-            <tr>
-              <th className="py-2 font-medium">Version</th>
-              <th className="py-2 font-medium">Published</th>
-              <th className="py-2 font-medium">Configs</th>
-              <th className="py-2 font-medium">Actions</th>
-            </tr>
+      <StatCards
+        stats={[
+          { label: "Live version", value: live ? `v${live}` : "—", hint: live ? "serving devices" : "never published" },
+          { label: "Revisions", value: String(versions.length) },
+          { label: "Rollbacks", value: String(versions.filter((v) => v.rolled_back_from !== null).length) },
+          { label: "Configs live", value: String(entryCount(versions[0]?.content)) },
+        ]}
+      />
+
+      <Panel title="Version history">
+        {versions.length === 0 ? (
+          <Empty>Nothing published yet. Publishing takes a snapshot of every enabled config.</Empty>
+        ) : (
+        <table className="w-full">
+          <thead className="border-b border-outline_variant bg-surface_variant/50">
+            <tr><Th>Version</Th><Th>Published</Th><Th>Configs</Th><Th>Actions</Th></tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-outline_variant">
             {versions.map((v) => (
-              <tr key={v.version} data-testid="version-row" className="border-b last:border-0">
-                <td className="py-3">
-                  <span className="font-mono">v{v.version}</span>
+              <tr key={v.version} data-testid="version-row" className="hover:bg-surface_variant/40">
+                <td className="px-5 py-3">
+                  <span className="font-mono text-sm font-semibold">v{v.version}</span>
                   {v.version === live && (
-                    <span className="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
+                    <span className="ml-2 rounded-full bg-tertiary_container px-2 py-0.5 text-[11px] font-semibold text-on_tertiary_container">
                       Live
                     </span>
                   )}
                   {v.rolled_back_from !== null && (
-                    <span className="ml-2 rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-600">
+                    <span className="ml-2 rounded-full bg-secondary_container px-2 py-0.5 text-[11px] font-medium text-on_secondary_container">
                       rollback of v{v.rolled_back_from}
                     </span>
                   )}
                 </td>
-                <td className="py-3 text-neutral-600">
+                <td className="px-5 py-3 text-sm text-on_surface_variant">
                   {new Date(v.published_at).toLocaleString()}
                 </td>
-                <td className="py-3 text-neutral-600">{entryCount(v.content)}</td>
-                <td className="py-3">
+                <td className="px-5 py-3 text-sm text-on_surface_variant">{entryCount(v.content)}</td>
+                <td className="px-5 py-3">
                   {/* No rollback on the live version: it is already what devices receive, so
                       the button would publish an identical snapshot and read as a no-op. */}
                   {v.version === live
-                    ? <span className="text-xs text-neutral-400">current</span>
+                    ? <span className="text-xs text-secondary">current</span>
                     : <RollbackButton appId={params.id} version={v.version} />}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-      )}
+        )}
+      </Panel>
 
-      <p className="mt-8 rounded border bg-neutral-50 p-4 text-sm text-neutral-600">
-        <strong className="font-medium">Rollback is forward-only.</strong> Rolling back to v3
-        publishes a <em>new</em> version carrying v3&apos;s content; the version being undone stays
-        in this list. A history that erased its own mistakes could not answer what was live, and when.
-      </p>
-    </main>
+      <div className="mt-6 flex gap-3 rounded-lg border border-outline_variant bg-surface p-4 text-sm text-on_surface_variant">
+        <span className="material-symbols-outlined text-[20px] text-primary" aria-hidden>history</span>
+        <p>
+          <strong className="font-semibold text-on_surface">Rollback is forward-only.</strong>{" "}
+          Rolling back to v3 publishes a <em>new</em> version carrying v3&apos;s content; the version
+          being undone stays in this list. A history that erased its own mistakes could not answer
+          what was live, and when.
+        </p>
+      </div>
+    </div>
   )
 }

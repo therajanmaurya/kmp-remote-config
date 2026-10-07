@@ -9,9 +9,9 @@ import { keyBadge } from "@/lib/key-display"
 import { IssueKeyButton, RevokeKeyButton } from "@/components/KeyRow"
 
 const TONE: Record<string, string> = {
-  live: "bg-green-100 text-green-900",
-  test: "bg-amber-100 text-amber-900",
-  revoked: "bg-neutral-200 text-neutral-600",
+  live: "bg-tertiary_container text-green-900",
+  test: "bg-amber-100 text-on_warning_container",
+  revoked: "bg-secondary_container text-on_secondary_container",
 }
 
 export default async function KeysPage({ params }: { params: { id: string } }) {
@@ -27,7 +27,7 @@ export default async function KeysPage({ params }: { params: { id: string } }) {
 
   return (
     <main className="mx-auto max-w-4xl p-6">
-      <Link href={`/apps/${params.id}`} className="text-sm text-neutral-500 hover:underline">
+      <Link href={`/apps/${params.id}`} className="text-sm text-secondary hover:underline">
         ← app
       </Link>
       <div className="mt-2 flex items-center justify-between">
@@ -35,7 +35,7 @@ export default async function KeysPage({ params }: { params: { id: string } }) {
         <IssueKeyButton appId={params.id} />
       </div>
 
-      <p className="mt-2 max-w-2xl text-sm text-neutral-500">
+      <p className="mt-2 max-w-2xl text-sm text-secondary">
         These are <strong>publishable</strong> keys — they ship inside your app and are safe to
         display here. What protects them is the package and certificate binding below, not
         secrecy. Issuing creates a live key and a test key together; the test key skips
@@ -43,13 +43,13 @@ export default async function KeysPage({ params }: { params: { id: string } }) {
       </p>
 
       {!keys?.length ? (
-        <p className="mt-6 rounded border border-dashed p-8 text-center text-sm text-neutral-500">
+        <p className="mt-6 rounded border border-dashed p-8 text-center text-sm text-secondary">
           No keys yet.
         </p>
       ) : (
         <div className="mt-6 overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="text-left text-xs uppercase text-neutral-500">
+            <thead className="text-left text-xs uppercase text-secondary">
               <tr>
                 <th className="py-2">Key</th>
                 <th>Env</th>
@@ -64,7 +64,7 @@ export default async function KeysPage({ params }: { params: { id: string } }) {
                 const badge = keyBadge(k)
                 return (
                   <tr key={k.id} className="border-t">
-                    <td className={`py-2 font-mono text-xs ${k.revoked_at ? "text-neutral-400 line-through" : ""}`}>
+                    <td className={`py-2 font-mono text-xs ${k.revoked_at ? "text-secondary line-through" : ""}`}>
                       {k.key}
                     </td>
                     <td>
@@ -72,9 +72,9 @@ export default async function KeysPage({ params }: { params: { id: string } }) {
                         {badge.label}
                       </span>
                     </td>
-                    <td className="text-neutral-600">{k.platform ?? "any"}</td>
-                    <td className="font-mono text-xs text-neutral-600">{k.bundle_id ?? "—"}</td>
-                    <td className="text-neutral-600">{k.attestation_policy}</td>
+                    <td className="text-on_surface_variant">{k.platform ?? "any"}</td>
+                    <td className="font-mono text-xs text-on_surface_variant">{k.bundle_id ?? "—"}</td>
+                    <td className="text-on_surface_variant">{k.attestation_policy}</td>
                     <td className="text-right">
                       {!k.revoked_at && <RevokeKeyButton keyId={k.id} appId={params.id} />}
                     </td>

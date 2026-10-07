@@ -128,7 +128,7 @@ export function AuthoringForm({
 
       {/* ── 1. Type ─────────────────────────────────────────────────────── */}
       <section className="mt-6">
-        <h2 className="text-sm font-medium uppercase tracking-wide text-neutral-500">Type</h2>
+        <h2 className="text-sm font-medium uppercase tracking-wide text-secondary">Type</h2>
         <div data-testid="template-picker" className="mt-3 grid gap-3 sm:grid-cols-3">
           {templates.map((t) => (
             <button
@@ -142,17 +142,17 @@ export function AuthoringForm({
                 // from the first render. Editing an existing config keeps its own values.
                 if (!existing) setPayload(defaultsFor(fieldsFor(t.payload_schema)))
               }}
-              className={`rounded border p-3 text-left text-sm hover:border-neutral-500 ${
-                t.id === templateId ? "border-neutral-900 ring-1 ring-neutral-900" : ""
+              className={`rounded border p-3 text-left text-sm hover:border-primary ${
+                t.id === templateId ? "border-primary ring-1 ring-primary" : ""
               }`}
             >
               <span className="font-medium">{t.display_name}</span>
               {!t.is_builtin && (
-                <span className="ml-2 rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-600">
+                <span className="ml-2 rounded bg-surface_variant px-1.5 py-0.5 text-[10px] text-on_surface_variant">
                   custom
                 </span>
               )}
-              <span className="mt-1 block text-xs text-neutral-500">{t.description}</span>
+              <span className="mt-1 block text-xs text-secondary">{t.description}</span>
             </button>
           ))}
         </div>
@@ -163,7 +163,7 @@ export function AuthoringForm({
         <>
           <section className="mt-8 grid gap-8 lg:grid-cols-2">
             <div>
-              <h2 className="text-sm font-medium uppercase tracking-wide text-neutral-500">Content</h2>
+              <h2 className="text-sm font-medium uppercase tracking-wide text-secondary">Content</h2>
               <div className="mt-3">
                 <SchemaForm
                   fields={fields}
@@ -197,7 +197,7 @@ export function AuthoringForm({
 
             {shape.showPreview && (
               <div>
-                <h2 className="text-sm font-medium uppercase tracking-wide text-neutral-500">Preview</h2>
+                <h2 className="text-sm font-medium uppercase tracking-wide text-secondary">Preview</h2>
                 <div className="mt-3">
                   <ConfigPreview display={effectiveDisplay || realDisplays[0] || "dialog"} payload={payload} fields={fields} />
                 </div>
@@ -207,7 +207,7 @@ export function AuthoringForm({
 
           {/* ── 3. Targeting + schedule ─────────────────────────────────── */}
           <section data-testid="targeting" className="mt-8">
-            <h2 className="text-sm font-medium uppercase tracking-wide text-neutral-500">
+            <h2 className="text-sm font-medium uppercase tracking-wide text-secondary">
               Targeting &amp; schedule
             </h2>
 
@@ -219,9 +219,9 @@ export function AuthoringForm({
                 {/* §11.3: empty must never be ambiguous. */}
                 <p className="mt-1 text-xs">
                   {screens.trim() === "" ? (
-                    <span className="rounded bg-neutral-100 px-2 py-0.5 text-neutral-700">All screens</span>
+                    <span className="rounded bg-surface_variant px-2 py-0.5 text-on_surface_variant">All screens</span>
                   ) : (
-                    <span className="text-neutral-500">Only the screens listed above.</span>
+                    <span className="text-secondary">Only the screens listed above.</span>
                   )}
                 </p>
               </div>
@@ -239,7 +239,7 @@ export function AuthoringForm({
                     </label>
                   ))}
                 </div>
-                <p className="mt-1 text-xs text-neutral-500">
+                <p className="mt-1 text-xs text-secondary">
                   {platforms.length === 0 ? "All platforms." : "Only those checked."}
                 </p>
               </fieldset>
@@ -277,7 +277,7 @@ export function AuthoringForm({
                 <input id="priority" type="number" value={priority}
                   onChange={(e) => setPriority(Number(e.target.value))}
                   className="mt-1 w-full rounded border px-3 py-2 text-sm" />
-                <p className="mt-1 text-xs text-neutral-500">Higher wins when several match.</p>
+                <p className="mt-1 text-xs text-secondary">Higher wins when several match.</p>
               </div>
 
               <div data-testid="rollout-controls">
@@ -295,7 +295,7 @@ export function AuthoringForm({
                   onChange={(e) => setRollout(Number(e.target.value))}
                   className="mt-2 w-full"
                 />
-                <p className="mt-1 text-xs text-neutral-500">
+                <p className="mt-1 text-xs text-secondary">
                   Each device is placed in a fixed bucket for this config, so raising the
                   percentage only ever <strong>adds</strong> devices — nobody who already has it
                   loses it, and a device never flickers in and out between fetches. Lowering it
@@ -340,7 +340,7 @@ export function AuthoringForm({
                   onChange={(e) => setRollout(Number(e.target.value))}
                   className="mt-2 w-full"
                 />
-                <p className="mt-1 text-xs text-neutral-500">
+                <p className="mt-1 text-xs text-secondary">
                   Each device is placed in a fixed bucket for this config, so raising the
                   percentage only ever <strong>adds</strong> devices — nobody who already has it
                   loses it, and a device never flickers in and out between fetches. Lowering it
@@ -361,7 +361,7 @@ export function AuthoringForm({
                     Dismissible
                   </label>
                   {forcedNonDismissible && (
-                    <p className="mt-1 text-xs text-neutral-500">
+                    <p className="mt-1 text-xs text-secondary">
                       This type requires acknowledgement, so it cannot be dismissible — a terms
                       change a user can swipe away has not been accepted.
                     </p>
@@ -371,12 +371,12 @@ export function AuthoringForm({
             </div>
 
             {/* is_enabled: one switch, off by default, labelled with what turning it on does. */}
-            <div className="mt-6 rounded border bg-neutral-50 p-4">
+            <div className="mt-6 rounded border bg-surface_variant p-4">
               <label className="flex items-center gap-2 text-sm font-medium">
                 <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
                 Enabled
               </label>
-              <p className="mt-1 text-xs text-neutral-600">
+              <p className="mt-1 text-xs text-on_surface_variant">
                 {enabled
                   ? "When you save, this will start serving to matching devices immediately."
                   : "Off — this will be saved but will not serve to anyone until you enable it."}
@@ -390,7 +390,7 @@ export function AuthoringForm({
             )}
 
             <button type="button" onClick={submit} disabled={busy}
-              className="mt-5 rounded bg-neutral-900 px-4 py-2 text-sm text-white disabled:opacity-60">
+              className="mt-5 rounded bg-primary px-4 py-2 text-sm font-semibold text-on_primary disabled:opacity-60">
               {busy ? "Saving…" : existing ? "Save changes" : "Save config"}
             </button>
           </section>

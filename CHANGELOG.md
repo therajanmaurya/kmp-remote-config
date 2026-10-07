@@ -58,7 +58,37 @@
   default rather than throwing. Proven by mutation — renaming `template` to `templateId` fails both
   this test and the inlined-fixture drift check; restoring it passes.
 
-### Phase 06 — parameters + conditions UI (T1), device preview (T2)
+### Phase 06 — the mockup design, demo data, and the parameter editor
+
+- **The design from the mockups is now actually implemented.** The earlier pages had the right
+  BEHAVIOUR and none of the design: no sidebar, no chrome, none of the colour system. Added the
+  tokens verbatim from the stitch `code.html` (the full role palette, Inter + JetBrains Mono,
+  Material Symbols, radius scale), the 64-unit sidebar shell with breadcrumbs and environment
+  chip, and hero / stat-card / panel treatments. 24 files migrated; zero `neutral-` references
+  remain, so no surface is left half-styled.
+- **Demo data seeded** (`supabase/seed_demo.sql`, operator-approved): Lumen Photos with the
+  mockups' own parameters, the four named conditions, seven overrides, a config, a test key and
+  two published revisions. The deployed plane had 15 builtin templates and zero apps, so signing
+  in landed on an empty list — and an empty dashboard is indistinguishable from a broken one.
+  Idempotent, owned by the real operator account, publishes AS the owner rather than loosening
+  `publish()` to accommodate a seed.
+- **Signing in with one app goes straight to its control plane** instead of a chooser with one
+  choice. Reported from a live session landing on `/auth/login` with nothing behind it.
+- **Parameter editor rebuilt to mockup 02**: an evaluation-precedence list where the default is
+  the final row of the same ordered list — it is the last branch of one decision, and showing it
+  elsewhere invites the reading that it applies alongside the overrides rather than after them.
+- **Live evaluator** (migration 015, `resolve_parameter_explain`): pick a sample audience, see
+  which rule won and why. It reuses the same `condition_matches` the edge function resolves
+  with, so the explanation can never describe a decision different from the one a device gets.
+  Verified against the seeded data — android 4.3.0 → true via "Android beta users", ios 4.5.0 →
+  true via "iOS 4.2 and newer", android 3.1.0 → default (below the condition's min version).
+  Authorisation is explicit because SECURITY DEFINER bypasses RLS, and the explanation leaks
+  condition names, not just a value.
+- Mockup 06 (templates) is a stub — README only, no `code.html` or `screen.png`, its metadata
+  lost to a stitch-verify regeneration. There is no templates design to implement; the existing
+  page carries the shared design language instead.
+
+### Phase 06 (earlier) — parameters + conditions UI (T1), device preview (T2)
 
 - **Parameters UI** at `/apps/[id]/parameters`: typed list with the default and override count,
   plus a per-parameter editor for conditional overrides shown as an ordered "if CONDITION then
