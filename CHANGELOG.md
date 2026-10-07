@@ -58,6 +58,40 @@
   default rather than throwing. Proven by mutation — renaming `template` to `templateId` fails both
   this test and the inlined-fixture drift check; restoring it passes.
 
+### SDK — the nine config-template designs
+
+- The `config-templates` mockups (9 screens) are now per-template Compose bodies. Before this the
+  SDK had FOUR generic presentations fed by `ConfigContent`, which derived a title and body by
+  guessing at payload keys — so `update_available` (store_url / forced / release_notes /
+  current_version, **no title at all**) rendered as an empty dialog with a generic heading, and
+  `survey_nps` reduced to a heading and a button that could not collect a score.
+- Each body reads only the fields ITS OWN schema declares, taken from the live control plane
+  rather than guessed: announcement, update_available (both the optional dialog and the forced
+  fullscreen — one body, `forced` changes copy and removes the decline), policy_update,
+  paywall_upsell, incident/information/maintenance/geo_notice/onboarding_tip (one severity-toned
+  strip, since those five schemas differ only in an optional field), survey_nps with a real
+  0..10 scale, whats_new, promo_offer, rating_prompt.
+- **Surface and content are separate.** `display` picks the chrome (`TemplateSurface`) and the
+  template picks the body, which is why update_available is one body shown two ways. Binding
+  content to surface would have meant writing it twice and letting the copies drift.
+- **A banner is inline chrome, not a Dialog.** Wrapping it in one is what would make a "banner"
+  a modal over the host's layout.
+- **Un-escapable when it must be**: a surface is dismissible only when the item says so AND the
+  template does not declare `requires_ack`. A forced update renders no decline at all, because a
+  control the evaluator would ignore is a control that lies.
+- `ActionType` gains `ACKNOWLEDGE` and `SUBMIT`. Acknowledge is distinct from dismiss on purpose:
+  both close the surface, but only one records that the user ACCEPTED — collapsing them makes a
+  compliance surface indistinguishable from a tap on the backdrop. Submit carries the NPS score,
+  which is why a submit with nothing selected must not fire.
+- **The generic presentation stays** as the path for custom templates and for builtins added to
+  the control plane after this SDK ships. It is the forward-compatibility story, not dead code —
+  a registry that threw on an unknown id would make every new template a mandatory SDK upgrade.
+  Asserted in both directions: all 14 rendering builtins have a body, `feature_flag`
+  (`renders_ui = false`) has none, and an unknown id falls through.
+- `TemplatePayload` tolerates missing, blank and wrongly-typed fields. The payload is authored in
+  a dashboard and validated by a schema the DEVICE never sees, so a reader that threw would turn
+  an operator's typo into a crash in the host app.
+
 ### Phase 06 — the mockup design, demo data, and the parameter editor
 
 - **The design from the mockups is now actually implemented.** The earlier pages had the right

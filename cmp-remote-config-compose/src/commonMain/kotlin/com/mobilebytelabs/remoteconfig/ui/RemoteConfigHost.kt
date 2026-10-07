@@ -8,6 +8,9 @@ import com.mobilebytelabs.remoteconfig.dispatch.ActionDispatcher
 import com.mobilebytelabs.remoteconfig.model.ActionType
 import com.mobilebytelabs.remoteconfig.model.DisplayType
 import com.mobilebytelabs.remoteconfig.model.RemoteConfigItem
+import com.mobilebytelabs.remoteconfig.ui.templates.DesignedTemplateBody
+import com.mobilebytelabs.remoteconfig.ui.templates.TemplateActions
+import com.mobilebytelabs.remoteconfig.ui.templates.hasDesignedBody
 import org.koin.compose.viewmodel.koinViewModel
 
 /**
@@ -36,6 +39,37 @@ fun RemoteConfigHost(
         } else {
             ActionDispatcher.dispatch(type, value)
         }
+    }
+
+    val display = DisplayType.from(config.display) ?: return
+
+    // A DESIGNED body for this template takes precedence. StaticConfigRenderer below remains
+    // the path for custom templates and for builtins added to the control plane after this SDK
+    // shipped — so it is the forward-compatibility story, not dead code. Without it, every new
+    // template would be a mandatory SDK upgrade.
+    if (hasDesignedBody(config.template)) {
+        // A template that requires acknowledgement must not be escapable: the surface is
+        // dismissible only when the ITEM says so AND the template does not demand a positive
+        // answer. A forced update sets is_dismissible=false for the same reason.
+        val dismissible = config.isDismissible && !config.requiresAck
+        TemplateSurface(
+            display = display,
+            dismissible = dismissible,
+            onDismiss = { viewModel.onConfigDismissed(config.id) },
+        ) {
+            DesignedTemplateBody(
+                item = config,
+                actions = TemplateActions(
+                    onPrimary = { type, value ->
+                        handle(ActionType(type), value)
+                        viewModel.onActionClicked(config.id)
+                    },
+                    onSecondary = { viewModel.onConfigDismissed(config.id, permanent = true) },
+                    onDismiss = { viewModel.onConfigDismissed(config.id) },
+                ),
+            )
+        }
+        return
     }
 
     StaticConfigRenderer(

@@ -84,5 +84,21 @@ value class ActionType(val value: String) {
         val STORE = ActionType("store")
         val DISMISS = ActionType("dismiss")
         val PREMIUM = ActionType("premium")
+
+        /**
+         * Positive acknowledgement of something the user had to see — the "I agree" on a
+         * policy_update, whose template declares `requires_ack`.
+         *
+         * Distinct from DISMISS on purpose: both close the surface, but only one is a record
+         * that the user ACCEPTED. Collapsing them would make a compliance surface
+         * indistinguishable from someone tapping the backdrop.
+         */
+        val ACKNOWLEDGE = ActionType("acknowledge")
+
+        /**
+         * The user supplied a value — an NPS score, a survey answer. The value travels in the
+         * action's `actionValue`, which is why a submit with nothing selected must not fire.
+         */
+        val SUBMIT = ActionType("submit")
     }
 }
