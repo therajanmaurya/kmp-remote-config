@@ -4,6 +4,7 @@ import { checkAttestation } from "../_shared/attestation-gate.ts";
 import { corsPreflight, failSoftConfigs, jsonForbidden, jsonOk, jsonRateLimited } from "../_shared/respond.ts";
 import { consumeRateLimit, readSubject } from "../_shared/rate-limit.ts";
 import { type ConfigRow, matchesAudience, sdkCanRender, type TemplateRow, toWireConfig } from "./audience.ts";
+import { resolveParameters } from "./parameters.ts";
 
 // A snapshot entry is `to_jsonb(config) || {template:…}`, so it carries every config column
 // plus the template contract frozen at publish time. Schedule bounds travel with it because
@@ -103,9 +104,18 @@ Deno.serve(async (req) => {
       .filter((r) => sdkCanRender(r.template, ctx.sdkVersion))
       .map((r) => toWireConfig(r, r.template));
 
+    // Parameters resolve against the SAME audience tuple the configs just filtered on, so a
+    // response is internally consistent: a caller cannot receive a config targeted at Android
+    // beta alongside a parameter value resolved for someone else.
+    const parameters = await resolveParameters(db, id.appId, {
+      platform: ctx.platform,
+      screen: ctx.screen,
+      app_version: ctx.appVersion,
+    });
+
     // No device identity participates in this response, so it is shared across every device
     // in the same audience tuple — which is what keeps it effectively free at the edge.
-    return jsonOk({ schema_version: 1, configs }, 60);
+    return jsonOk({ schema_version: 1, configs, parameters }, 60);
   } catch (e) {
     return failSoft("unhandled", e);
   }

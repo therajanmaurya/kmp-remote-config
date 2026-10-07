@@ -419,3 +419,18 @@ because a privilege does not bind the table owner or `service_role`.
 The ONE exception to append-only is the FK cascade when an app is deleted: without it the guard
 aborts the cascade and makes every app with history permanently undeletable. Retaining the audit
 trail of an app that no longer exists is a leak, not integrity.
+
+## Parameters + conditions (migration 012) — deployed 2026-10-07
+
+`parameter` / `condition` / `parameter_value`, with resolution in SQL (`resolve_parameters`).
+
+Verified on prod: an android caller receives a condition's value, a parameter with no matching
+condition serves its default, and `anon` callable routines remain 0.
+
+**Resolution lives in SQL on purpose.** The edge function already evaluates an audience for
+configs; a second implementation in TypeScript would give the product two definitions of what
+"Android beta" means. `parameters.ts` is a thin caller, and it returns `{}` rather than throwing —
+a parameter lookup failing must not take down the configs response beside it.
+
+**`parameter_value` has no `app_id`.** It inherits the tenant boundary through its parameter, which
+is what stops a crafted `parameter_id` from attaching a value to another tenant's parameter.

@@ -58,6 +58,40 @@
   default rather than throwing. Proven by mutation — renaming `template` to `templateId` fails both
   this test and the inlined-fixture drift check; restoring it passes.
 
+### Phase 03 — typed parameters + named conditions (migration 012)
+
+- The half of Firebase Remote Config this product never had. Values previously existed only as a
+  `feature_flag` config row with a free-form payload: no type, no default, and no way to vary a
+  value by audience without authoring a second row and syncing the two by hand.
+- Three tables: `parameter` (key, type, default), `condition` (name, predicate, priority),
+  `parameter_value` (parameter × condition → value). Parameters and configs stay SEPARATE objects —
+  `config` suits bespoke UI overlays, `parameter` suits typed values, and one table doing both
+  makes each worse.
+- **Conditions are REFERENCED, never copied.** `parameter_value` holds a `condition_id`; editing
+  one condition changes every parameter attached to it. Copying the predicate per attachment would
+  make "name it once, edit it everywhere" quietly false, with each attachment drifting into its own
+  private rule and nothing reporting it. Asserted directly: three parameters share one condition,
+  one edit changes all three, and exactly one predicate row exists.
+- Ties are structurally impossible: `UNIQUE (parameter_id, priority)`. Two overrides at the same
+  priority would make "first match wins" depend on physical row order — not a decision anyone made,
+  and not stable across a vacuum.
+- The declared type is ENFORCED, not decorative: a boolean parameter cannot hold `"yes"`. That is
+  the free-form-payload problem these tables exist to end.
+- Resolution lives in SQL (`resolve_parameters`), and `parameters.ts` is a thin caller. The edge
+  function already evaluates an audience for configs; a second implementation in TypeScript would
+  give the product two definitions of what "Android beta" means — they would agree in review and
+  drift in production, and the first symptom would be a user seeing the wrong value.
+- Semver compares by padded parts, so 4.10.0 sorts above 4.9.0. A plain text compare gets that
+  backwards and silently excludes the newest users from a rollout.
+- `RemoteConfigClient` adds `getString` / `getBoolean` / `getLong` / `getDouble` / `getJson`,
+  resolving server value → in-app default. The in-app default matters most on a first launch with
+  no network: without it every flag-gated feature would be silently off for every new install until
+  a fetch landed. A type mismatch falls back rather than throwing — crashing a host app over a
+  config value is never the right trade.
+- `parameters` added to the wire envelope, defaulted to empty so an older server keeps working.
+- Verified live (11/11 in `e2e_sdk_contract.sh`): an android caller receives the condition's value
+  and a parameter with no matching condition serves its default, both through the deployed function.
+
 ### Phase 02 — the publish gate (migration 011)
 
 - **Every edit used to be live on the next fetch.** `config` rows are now the DRAFT surface;

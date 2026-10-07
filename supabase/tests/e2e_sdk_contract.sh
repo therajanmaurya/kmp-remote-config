@@ -167,6 +167,32 @@ n_versions=$(curl -s -K "$WORK/curlrc" \
   "$REST/config_version?app_id=eq.$APP_ID&select=version" | grep -o '"version"' | wc -l | tr -d ' ')
 check "the undone version is still in history (G-4b)" 3 "$n_versions"
 
+# ---- G-5: typed parameters resolve for this caller's audience -------------------
+# Seeded against the sentinel app, so the assertion proves the DEPLOYED function calls
+# resolve_parameters and the condition actually matched this caller's platform.
+pid=$(curl -s -K "$WORK/curlrc" -X POST "$REST/parameter" -H "Prefer: return=representation" \
+  -d "{\"app_id\":\"$APP_ID\",\"key\":\"welcome_banner_enabled\",\"type\":\"boolean\",\"default_value\":false}" \
+  | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
+cid=$(curl -s -K "$WORK/curlrc" -X POST "$REST/condition" -H "Prefer: return=representation" \
+  -d "{\"app_id\":\"$APP_ID\",\"name\":\"Android\",\"predicate\":{\"platforms\":[\"android\"]},\"priority\":10}" \
+  | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
+curl -s -K "$WORK/curlrc" -X POST "$REST/parameter_value" \
+  -d "{\"parameter_id\":\"$pid\",\"condition_id\":\"$cid\",\"value\":true,\"priority\":1}" >/dev/null 2>&1
+
+curl -s -o "$WORK/body.json" "$FUNC" \
+  -H "X-RC-Key: $SENTINEL_KEY" -H "X-RC-Package: $SENTINEL_BUNDLE" \
+  -H "X-RC-Platform: android" -H "X-RC-App-Version: 5.0.0" -H "X-RC-SDK-Version: 5.0.0"
+has_true=$(grep -c '"welcome_banner_enabled":true' "$WORK/body.json" || true)
+check "an android caller gets the condition's value, not the default (G-5)" 1 "$has_true"
+
+curl -s -K "$WORK/curlrc" -X POST "$REST/parameter" \
+  -d "{\"app_id\":\"$APP_ID\",\"key\":\"max_uploads\",\"type\":\"number\",\"default_value\":5}" >/dev/null 2>&1
+curl -s -o "$WORK/body2.json" "$FUNC" \
+  -H "X-RC-Key: $SENTINEL_KEY" -H "X-RC-Package: $SENTINEL_BUNDLE" \
+  -H "X-RC-Platform: android" -H "X-RC-App-Version: 5.0.0" -H "X-RC-SDK-Version: 5.0.0"
+has_default=$(grep -c '"max_uploads":5' "$WORK/body2.json" || true)
+check "a parameter with no matching condition serves its default (G-5)" 1 "$has_default"
+
 # ---- parse the LIVE body with the shipped model ---------------------------------
 ( cd "$REPO" && ./gradlew --quiet :cmp-remote-config:jvmTest \
     --tests '*LiveWireParseTest*' -Drc.live.body="$WORK/body.json" --rerun-tasks ) > "$WORK/parse.log" 2>&1

@@ -15,6 +15,7 @@ TESTS=(
   rate_limit_test.sql
   custom_template_test.sql
   publish_test.sql
+  parameter_test.sql
   rls_test.sql
 )
 

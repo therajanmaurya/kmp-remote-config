@@ -22,6 +22,15 @@ import kotlinx.serialization.json.JsonObject
 data class RemoteConfigEnvelope(
     @SerialName("schema_version") val schemaVersion: Int = 1,
     val configs: List<RemoteConfigItem> = emptyList(),
+    /**
+     * Typed parameter values, already resolved for this caller's audience.
+     *
+     * A flat key → value map rather than a list of objects with their conditions attached:
+     * the server has already decided which condition won, and shipping the predicates would
+     * invite the client to re-decide and disagree. Defaulted to empty so an older server that
+     * sends no `parameters` key keeps working.
+     */
+    val parameters: JsonObject = JsonObject(emptyMap()),
 )
 
 /**
