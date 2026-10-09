@@ -12,6 +12,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -22,8 +23,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.mobilebytelabs.remoteconfig.ui.RemoteConfigHost
+import com.mobilebytelabs.remoteconfig.ui.RemoteConfigSurface
+import com.mobilebytelabs.remoteconfig.model.DisplayType
+import com.mobilebytelabs.remoteconfig.model.RemoteConfigItem
 import kotlinx.coroutines.launch
 
 /**
@@ -42,6 +47,8 @@ fun SampleScreen(config: SampleRemoteConfig) {
     val scope = rememberCoroutineScope()
     var refreshing by remember { mutableStateOf(false) }
     var lastResult by remember { mutableStateOf<String?>(null) }
+    // Which template the gallery is currently rendering, or null for none.
+    var preview by remember { mutableStateOf<RemoteConfigItem?>(null) }
 
     // One fetch on first composition. A real app would also consult
     // `config.values.shouldFetch(lastFetchAt, now)` so the operator's interval and kill switch
@@ -52,7 +59,7 @@ fun SampleScreen(config: SampleRemoteConfig) {
         refreshing = false
     }
 
-    MaterialTheme {
+    SampleTheme {
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             Column(
                 modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
@@ -105,6 +112,10 @@ fun SampleScreen(config: SampleRemoteConfig) {
 
                 // ── the Compose half ───────────────────────────────────────────
                 Text("Surfaces", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+
+                // DELIVERY: whichever single config the evaluator chose for this device right
+                // now, rendered through the real Host. This is what a user would actually see,
+                // and the one line a host app writes.
                 val active = config.activeConfig
                 if (active == null) {
                     Text(
@@ -116,15 +127,82 @@ fun SampleScreen(config: SampleRemoteConfig) {
                     )
                 } else {
                     Text(
-                        "template ${active.template} · display ${active.display}",
+                        "active: ${active.template} \u00b7 ${active.display}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    // The REAL Host. It resolves the template's designed body, wraps it in the
-                    // surface `display` names, and routes action CTAs to the handlers
-                    // registered in sampleModule(). Nothing here is sample-specific: this one
-                    // line is the whole rendering integration.
                     RemoteConfigHost()
+                }
+
+                // GALLERY: every template the control plane delivered, on demand.
+                //
+                // Deliberately separate from the Host above. The Host answers "what does THIS
+                // user see", which is one item after impression caps and cooldown; the gallery
+                // answers "what does each template look like", which is the question a sample
+                // exists to answer. Rendering them through the same path would mean opening the
+                // gallery consumed the impressions a real user was owed — max_impressions
+                // defaults to 1.
+                // Split by whether the config RENDERS. `feature_flag` has display "none" and
+                // renders_ui=false, so DisplayType.from() returns null and RemoteConfigSurface
+                // draws nothing — putting it in the tappable list made a row that silently did
+                // nothing when pressed, which is the dead-clickable class this product's own
+                // rules forbid. It is reported instead, because it IS delivered and hiding it
+                // would misrepresent the envelope.
+                val delivered = config.deliveredConfigs
+                val renderable = delivered.filter { DisplayType.from(it.display) != null }
+                val valueOnly = delivered.size - renderable.size
+                if (renderable.isNotEmpty()) {
+                    Text(
+                        "Templates",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        "${renderable.size} of ${delivered.size} delivered configs render a surface. " +
+                            "Tap one to see it. " +
+                            "These use RemoteConfigSurface, which draws a config the APP chose " +
+                            "rather than the one the evaluator picked \u2014 so previewing one " +
+                            "does not spend the impression a real user is owed.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+
+                    for (item in renderable) {
+                        TextButton(
+                            onClick = { preview = if (preview?.id == item.id) null else item },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(
+                                "${item.template}  \u00b7  ${item.display}",
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.bodyMedium,
+                                textAlign = TextAlign.Start,
+                            )
+                            Text(
+                                if (preview?.id == item.id) "hide" else "show",
+                                style = MaterialTheme.typography.labelMedium,
+                            )
+                        }
+                    }
+
+                    // Rendered OUTSIDE the list so a dialog or bottom sheet is not nested inside
+                    // a scrolling column, which clips it.
+                    preview?.let { item ->
+                        RemoteConfigSurface(
+                            item = item,
+                            onDismiss = { preview = null },
+                        )
+                    }
+
+                    if (valueOnly > 0) {
+                        Text(
+                            "$valueOnly value-only config(s) also arrived \u2014 feature_flag and " +
+                                "friends carry no surface, so the evaluator drops them from UI " +
+                                "delivery and there is nothing to render.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
         }

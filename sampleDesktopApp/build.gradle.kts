@@ -10,7 +10,10 @@ plugins {
 // different jobs — the wizard splits them for the same reason.
 kotlin {
     jvm()
-    jvmToolchain(17)
+    // 21, not 17: the desktop app loads cmp-observe / cmp-open-url, which are published at
+    // Java 21. A 17 toolchain reproduces exactly the UnsupportedClassVersionError this change
+    // exists to remove.
+    jvmToolchain(21)
 
     sourceSets {
         jvmMain.dependencies {

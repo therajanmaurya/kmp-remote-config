@@ -1,5 +1,7 @@
 package com.mobilebytelabs.remoteconfig
 
+import com.mobilebytelabs.remoteconfig.platform.PlatformIdentity
+
 import io.ktor.client.HttpClient
 
 import com.mobilebytelabs.remoteconfig.di.RemoteConfigSettings
@@ -85,13 +87,30 @@ class RemoteConfigBuilder internal constructor() {
     /** The host app's package / bundle id. The server 403s `package_mismatch` on a mismatch. */
     var packageName: String = ""
 
-    /** android · ios · desktop · web · wasm. A key pinned to a platform refuses the others. */
+    /**
+     * android · ios · desktop · web · wasm. A key pinned to a platform refuses the others.
+     *
+     * Leave it unset: it defaults to [PlatformIdentity.platform], which the platform knows for
+     * certain. A hand-typed value can only be right or a `platform_mismatch` the operator reads
+     * as a server fault.
+     */
     var platform: String = ""
 
     /** The host app's version name, e.g. "4.3.0". Used server-side for the version window. */
     var appVersion: String = ""
 
-    /** Android only — the signing certificate digest, when the key registers any. */
+    /**
+     * Android only — the signing certificate digest, when the key registers any.
+     *
+     * **Leave it unset.** It defaults to [PlatformIdentity.signingDigest], which the SDK reads
+     * from `PackageManager` and formats the way the control plane stores it. Set it only when
+     * the digest this device can see is NOT the one the server knows — Play App Signing being
+     * the real case, where Play re-signs with a certificate the local APK never carries.
+     *
+     * This used to be the consumer's job, and its failure mode is the reason it no longer is:
+     * omit the digest and the server refuses every fetch, so the app serves its bundled
+     * defaults indefinitely while looking completely healthy.
+     */
     var certDigest: String? = null
 
     /** Override only for a self-hosted control plane. */
@@ -120,16 +139,19 @@ class RemoteConfigBuilder internal constructor() {
     internal fun build(): RemoteConfigSettings {
         require(publishableKey.isNotBlank()) { "remoteConfig { publishableKey } is required" }
         require(packageName.isNotBlank()) { "remoteConfig { packageName } is required" }
-        require(platform.isNotBlank()) { "remoteConfig { platform } is required" }
         require(appVersion.isNotBlank()) { "remoteConfig { appVersion } is required" }
         val client = requireNotNull(httpClient) { "remoteConfig { httpClient } is required" }
+        // `platform` is no longer required: the platform knows it. An explicit value still wins,
+        // so a host with an unusual mapping is not blocked.
         return RemoteConfigSettings(
             publishableKey = publishableKey,
             packageName = packageName,
-            platform = platform,
+            platform = platform.ifBlank { PlatformIdentity.platform },
             appVersion = appVersion,
             httpClient = client,
-            certDigest = certDigest,
+            // Resolved by the SDK unless the caller overrides it. Play App Signing is the one
+            // case where the local certificate is not the one the server knows.
+            certDigest = certDigest ?: PlatformIdentity.signingDigest,
             baseUrl = baseUrl,
         )
     }

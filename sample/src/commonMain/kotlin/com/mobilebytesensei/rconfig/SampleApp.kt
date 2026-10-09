@@ -6,6 +6,7 @@ import com.mobilebytelabs.remoteconfig.local.RemoteConfigLocalStore
 import com.mobilebytelabs.remoteconfig.model.RemoteConfigItem
 import com.mobilebytelabs.remoteconfig.network.ConfigFetchResult
 import com.mobilebytelabs.remoteconfig.network.RemoteConfigService
+import com.mobilebytelabs.remoteconfig.platform.PlatformIdentity
 import com.mobilebytelabs.remoteconfig.remoteConfigDefaults
 import io.ktor.client.HttpClient
 
@@ -66,6 +67,12 @@ object SampleConfig {
             // unidentified caller from a partial rollout rather than including it, so a
             // missing id makes a rollout reach fewer devices, never more.
             deviceId = deviceId,
+            // Resolved by the SDK. This used to be a parameter the host had to supply, and the
+            // sample proves why it should not be: it builds TWO services — this one backs the
+            // typed getters and the Fetch button, the Koin one backs RemoteConfigHost — so a
+            // caller-supplied digest was two places to forget, and forgetting either served
+            // bundled defaults forever while looking healthy.
+            certDigest = PlatformIdentity.signingDigest,
         )
         val store = RemoteConfigLocalStore()
         return SampleRemoteConfig(
@@ -93,6 +100,20 @@ class SampleRemoteConfig internal constructor(
     var activeConfig: RemoteConfigItem? = null
         private set
 
+    /**
+     * EVERY config the server delivered, not just the one the evaluator chose.
+     *
+     * `activeConfig` answers "what should this user see right now" — one item, after impression
+     * caps, dismissal and cooldown. That is the right answer for delivery and the wrong one for
+     * a gallery: the sample exists to show what each template looks like, and dropping thirteen
+     * of fourteen on the floor would make most of the product invisible.
+     *
+     * Kept in delivery order so the list is stable between launches; the server sorts by
+     * priority, and reordering here would make the gallery shuffle for no reason.
+     */
+    var deliveredConfigs: List<RemoteConfigItem> = emptyList()
+        private set
+
     var lastRejection: String? = null
         private set
 
@@ -108,6 +129,7 @@ class SampleRemoteConfig internal constructor(
         return when (val result = service.fetchConfigs(screen)) {
             is ConfigFetchResult.Success -> {
                 values.accept(result.envelope)
+                deliveredConfigs = result.envelope.configs
                 activeConfig = evaluator.evaluate(result.envelope.configs)
                 lastRejection = null
                 true

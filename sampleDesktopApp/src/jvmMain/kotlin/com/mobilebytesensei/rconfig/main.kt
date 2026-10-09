@@ -13,12 +13,14 @@ import kotlin.uuid.Uuid
 
 /** `./gradlew :sampleDesktopApp:run` */
 fun main() {
+    // The sample's own desktop TEST key, committed because a publishable key is public — it
+    // ships inside the binary either way. `error()` here used to make `:sampleDesktopApp:run`
+    // fail out of the box, which is the wrong first experience for the module whose whole job
+    // is to run immediately.
+    //
+    // The env var still wins, so pointing the sample at another app needs no edit.
     val publishableKey = System.getenv("RCONFIG_PUBLISHABLE_KEY")
-        ?: error(
-            "Set RCONFIG_PUBLISHABLE_KEY to a test key from the rconfig dashboard " +
-                "(Keys page, rck_test_…). The test key skips attestation, which is what makes " +
-                "it usable from a debug build.",
-        )
+        ?: "rck_test_fyjPUqr04YUfMmo9R8ziXg2yPykziQm1"
 
     initRemoteConfig(
         publishableKey = publishableKey,

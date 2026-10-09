@@ -1,10 +1,9 @@
 export const runtime = "edge"
 
 import Link from "next/link"
-import { redirect } from "next/navigation"
 import { requireUser } from "@/lib/require-user"
 import { loadFleet } from "@/lib/fleet"
-import { OrgShell } from "@/components/OrgShell"
+import { Shell } from "@/components/Shell"
 
 /**
  * The apps LIST, as distinct from the dashboard matrix.
@@ -16,10 +15,9 @@ import { OrgShell } from "@/components/OrgShell"
 export default async function AppsPage() {
   const { user, supabase } = await requireUser()
   const fleet = await loadFleet(supabase)
-  if (fleet.length === 0) redirect("/onboarding")
 
   return (
-    <OrgShell active="Apps" userEmail={user.email ?? null} appCount={fleet.length}>
+    <Shell active="Apps" userEmail={user.email ?? null} apps={fleet}>
       <div className="p-6">
         <div className="flex items-center justify-between gap-4">
           <div>
@@ -34,6 +32,25 @@ export default async function AppsPage() {
             New app
           </Link>
         </div>
+
+        {fleet.length === 0 && (
+          // Previously this page redirected to the wizard, which meant a zero-app operator
+          // could not reach it at all — same trap as the dashboard had.
+          <div className="mt-6 rounded-lg border border-dashed border-outline_variant bg-surface p-10 text-center">
+            <p className="text-sm font-medium">No apps registered</p>
+            <p className="mx-auto mt-1 max-w-md text-sm text-secondary">
+              Registering an app issues its publishable key and gives it somewhere to hold
+              parameters and configs.
+            </p>
+            <Link
+              href="/onboarding"
+              className="mt-4 inline-flex items-center gap-1.5 rounded-md bg-primary px-3.5 py-2 text-sm font-semibold text-on_primary"
+            >
+              <span className="material-symbols-outlined text-[18px]" aria-hidden>add</span>
+              Add an app
+            </Link>
+          </div>
+        )}
 
         <ul className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {fleet.map((a) => (
@@ -65,6 +82,6 @@ export default async function AppsPage() {
           ))}
         </ul>
       </div>
-    </OrgShell>
+    </Shell>
   )
 }

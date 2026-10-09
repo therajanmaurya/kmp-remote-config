@@ -3,20 +3,9 @@ export const runtime = "edge"
 import { headers } from "next/headers"
 import { requireUser } from "@/lib/require-user"
 import { getPublishStatus } from "@/lib/publish-status"
-import { AppShell } from "@/components/AppShell"
-
-/** Which sidebar entry to highlight, derived from the path rather than threaded through each page. */
-function activeFromPath(pathname: string): string {
-  if (pathname.includes("/parameters")) return "Parameters"
-  if (pathname.includes("/conditions")) return "Conditions"
-  if (pathname.includes("/configs")) return "Configs"
-  if (pathname.includes("/templates")) return "Templates"
-  if (pathname.includes("/keys")) return "Keys"
-  if (pathname.includes("/preview")) return "Preview"
-  if (pathname.includes("/history")) return "Activity"
-  if (pathname.includes("/publish")) return "Publish"
-  return "Overview"
-}
+import { loadAppList } from "@/lib/fleet"
+import { resolveSection } from "@/lib/app-section"
+import { Shell } from "@/components/Shell"
 
 export default async function AppLayout({
   children,
@@ -25,27 +14,36 @@ export default async function AppLayout({
   children: React.ReactNode
   params: { id: string }
 }) {
-  const { supabase } = await requireUser()
+  const { user, supabase } = await requireUser()
 
-  const [{ data: app }, status] = await Promise.all([
+  const [{ data: app }, status, apps] = await Promise.all([
     supabase.from("app").select("display_name").eq("id", params.id).maybeSingle(),
     getPublishStatus(supabase, params.id),
+    loadAppList(supabase),
   ])
 
   // `x-invoke-path` is set by Next on the edge runtime; `x-pathname` by our middleware. Either
   // way a miss only costs the highlight, never the page.
   const h = headers()
   const pathname = h.get("x-pathname") ?? h.get("x-invoke-path") ?? ""
+  const hit = resolveSection(pathname)
 
   return (
-    <AppShell
-      appId={params.id}
-      appName={app?.display_name ?? "App"}
-      active={activeFromPath(pathname)}
-      liveVersion={status.liveVersion}
-      stagedCount={status.staged.length}
+    <Shell
+      active={hit?.label ?? "Overview"}
+      userEmail={user.email ?? null}
+      apps={apps}
+      app={{
+        id: params.id,
+        name: app?.display_name ?? "App",
+        liveVersion: status.liveVersion,
+        stagedCount: status.staged.length,
+        // Switching apps keeps you on the same section — comparing the same surface across two
+        // apps is the usual reason to switch.
+        section: hit?.section ?? null,
+      }}
     >
       {children}
-    </AppShell>
+    </Shell>
   )
 }

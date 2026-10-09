@@ -25,14 +25,23 @@ internal fun sampleModule(
         this.platform = platform
         this.appVersion = appVersion
         this.httpClient = http
+        // `platform` and `certDigest` are deliberately NOT set: the DSL resolves both from
+        // PlatformIdentity. Setting them here would re-create the footgun the SDK just removed.
 
-        // Action CTAs route here. A template's primary action carries a type and a value —
-        // `store` for an update, `url` for a policy link — and anything unregistered falls
-        // through to the dispatcher's default rather than silently doing nothing.
-        action(ActionType.STORE) { value, _ -> println("sample: open store → $value") }
-        action(ActionType.URL) { value, _ -> println("sample: open url → $value") }
-        action(ActionType.ACKNOWLEDGE) { _, _ -> println("sample: acknowledged") }
-        action(ActionType.SUBMIT) { value, _ -> println("sample: submitted score $value") }
+        // NOTE WHAT IS NOT REGISTERED HERE.
+        //
+        // STORE and URL used to be registered to `println`, which is what a host writes when
+        // the SDK leaves the destination to them — and it is why every CTA in this sample did
+        // nothing but log. The SDK now opens them itself through KmpToolkit's url launcher, so
+        // a dashboard-authored `cta_action` works with no app-side code at all. That is the
+        // point: the operator publishes a link, nobody rebuilds the app.
+        //
+        // A host that needs different behaviour still registers a handler and wins — an app
+        // with its own in-app router for deeplinks should not get an external browser.
+        //
+        // SUBMIT is registered because only the app knows where an NPS score goes; there is no
+        // universal destination for it, and the SDK says so rather than guessing.
+        action(ActionType.SUBMIT) { value, _ -> println("sample: NPS score submitted → $value") }
     }
 }
 

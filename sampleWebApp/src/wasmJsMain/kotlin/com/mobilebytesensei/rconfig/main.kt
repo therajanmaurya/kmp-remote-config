@@ -15,7 +15,7 @@ fun main() {
         // On the web the key is visible in the bundle no matter where it is read from — which
         // is fine, because a publishable key is not a secret. What protects it is the package
         // binding the server checks on every request.
-        publishableKey = "rck_test_REPLACE_WITH_YOUR_TEST_KEY",
+        publishableKey = "rck_test_erQexYFMuLOroQCl5v2vAsXmn6qMlJh7",
         platform = "web",
         appVersion = "1.0.0",
         httpClient = HttpClient(Js),

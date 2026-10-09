@@ -37,6 +37,11 @@ internal fun requireConfig(): SampleRemoteConfig =
  * @param deviceId a stable per-install id. Null is honest rather than convenient: the server
  *   EXCLUDES an unidentified caller from a partial rollout, so a missing id makes a staged
  *   rollout reach fewer devices, never more.
+ *
+ * Note what is NOT a parameter: the platform token and the android signing digest. The SDK
+ * resolves both from [com.mobilebytelabs.remoteconfig.platform.PlatformIdentity], because a
+ * caller who forgets the digest gets a silent serve-your-own-defaults failure rather than an
+ * error — which is exactly what happened to this sample before the SDK took the job over.
  */
 fun initRemoteConfig(
     publishableKey: String,

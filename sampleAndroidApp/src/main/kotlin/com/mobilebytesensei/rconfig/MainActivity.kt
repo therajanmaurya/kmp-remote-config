@@ -33,10 +33,18 @@ class MainActivity : ComponentActivity() {
 }
 
 /**
- * Replaced by a real `BuildConfig` field or a resource when this sample is wired into a
- * project. Kept as an explicit constant so the file compiles standalone and so nobody's live
- * key ends up committed here.
+ * Committed on purpose. A publishable key is PUBLIC — it ships inside the APK, so anyone can
+ * extract it in a minute, and hiding it would buy nothing while stopping a developer from
+ * reading the key their own app already contains. What protects it is the BINDING the server
+ * checks on every request: applicationId `com.mobilebytesensei.rconfig`, the SHA-256 signing
+ * digest, and the environment.
+ *
+ * This is the TEST key, which carries `attestation_policy: off` so a debug build runs. The
+ * live key is bound to the same package and digest and belongs in a release build.
+ *
+ * The SECRET half of this product is the `rcp_` access token, which lives in the vault and
+ * never appears in source. The two are opposites; do not confuse them.
  */
 internal object BuildConfigKey {
-    const val VALUE: String = "rck_test_REPLACE_WITH_YOUR_TEST_KEY"
+    const val VALUE: String = "rck_test_Oa8Z5tsgTKOL8K8WpYCJ4W0BCaarHrKD"
 }

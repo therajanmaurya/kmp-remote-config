@@ -34,6 +34,15 @@ plugins {
 // Maven Central.
 @OptIn(ExperimentalKotlinGradlePluginApi::class, ExperimentalWasmDsl::class)
 kotlin {
+    // Toolchain 21, not just jvmTarget 21.
+    //
+    // `jvmTarget` controls the bytecode we EMIT; it says nothing about the JDK that RUNS the
+    // tests. Gradle here launches on JDK 17, so with target-only the suite still failed with
+    // UnsupportedClassVersionError the moment it touched KmpToolkit's Java-21 classes — the
+    // exact error the raise was meant to remove. Declaring the toolchain makes the compile and
+    // test JVMs explicit instead of inheriting whatever JDK started the daemon.
+    jvmToolchain(21)
+
     applyDefaultHierarchyTemplate()
 
     jvm()
@@ -42,11 +51,25 @@ kotlin {
         namespace = "com.mobilebytesensei.rconfig"
         compileSdk = libs.versions.android.compileSdk.get().toInt()
         minSdk = libs.versions.android.minSdk.get().toInt()
-        compilerOptions { jvmTarget = JvmTarget.JVM_11 }
+        // Matches the library modules; see the note in cmp-remote-config/build.gradle.kts.
+        compilerOptions { jvmTarget = JvmTarget.JVM_21 }
     }
 
-    iosArm64()
-    iosSimulatorArm64()
+    // A framework, not bare targets. `iosArm64()` alone compiles Kotlin and produces a klib,
+    // which is why `:sample:compileKotlinIosSimulatorArm64` passed for months while there was
+    // nothing an Xcode project could link against — `embedAndSignAppleFrameworkForXcode` is
+    // registered by the `binaries.framework` declaration, so without this block the build
+    // phase every iOS integration guide tells you to add refers to a task that does not exist.
+    //
+    // Static because that is what the Compose Multiplatform wizard emits and what the SDK's
+    // consumers will therefore have: a dynamic framework needs signing on every embed, and the
+    // sample should not be the one place that deviates.
+    listOf(iosArm64(), iosSimulatorArm64()).forEach { target ->
+        target.binaries.framework {
+            baseName = "sample"
+            isStatic = true
+        }
+    }
 
     wasmJs { browser() }
 

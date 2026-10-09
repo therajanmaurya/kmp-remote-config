@@ -1,0 +1,65 @@
+# Launch regression for the rconfig sample.
+#
+# ── The bug this exists for ──────────────────────────────────────────────────────────────────
+# `AndroidManifest.xml` declared `android:name=".MainActivity"`. A leading-dot name resolves
+# against the module's `namespace` (com.mobilebytesensei.rconfig.android), while the Kotlin class
+# is com.mobilebytesensei.rconfig.MainActivity. The APK assembled cleanly every single time —
+# manifest component names are never checked against Kotlin packages — and died on launch with
+# ClassNotFoundException. The sample android app had NEVER started.
+#
+# Nothing in the repository could see it:
+#   - `assembleDebug` passes, because the manifest is not type-checked
+#   - unit tests pass, because they never instantiate an Activity
+#   - the SDK's own tests pass, because the SDK is fine
+#
+# The only thing that catches it is launching the app and looking. That is this file.
+#
+# ── What it asserts, and why these ───────────────────────────────────────────────────────────
+# `launchApp` alone is NOT enough: it returns successfully for an app that crashes a moment
+# later, so a flow that only launches would have stayed green through the entire outage. Every
+# assertion below is therefore about something RENDERED, which can only happen if the Activity
+# was instantiated and Compose drew a frame.
+#
+# The last assertion is a different class of bug: `cert_mismatch` means the server refused the
+# fetch, which makes the app serve its bundled defaults forever while looking perfectly healthy.
+# It is asserted as an ABSENCE rather than by checking a specific served value on purpose —
+# pinning "777" would couple this flow to published state, and someone republishing a parameter
+# would turn it red for a reason that has nothing to do with the code.
+appId: com.mobilebytesensei.rconfig
+name: sample-android-launch-regression
+tags:
+  - regression
+  - launch
+  - rconfig-sample
+---
+# clearState so the run cannot be satisfied by a cached config from a previous launch: this must
+# prove a cold start works, which is the case that was broken.
+- launchApp:
+    clearState: true
+
+# The Activity instantiated and Compose rendered. This is the assertion the ClassNotFoundException
+# fails — the screen is blank (or the crash dialog is up) and the text never appears.
+- assertVisible: "rconfig sample"
+
+# The app's own identity, rendered from SampleConfig.APPLICATION_ID. Pins that the running APK is
+# the one bound to the publishable key, rather than some other build that happens to launch.
+- assertVisible: "com.mobilebytesensei.rconfig"
+
+# The values pane drew. Separate from the title because a partial composition — a theme crash, a
+# missing resource — can render a heading and nothing else.
+- assertVisible: "Values"
+- assertVisible: "max_upload_mb"
+
+# Give the first fetch time to land before judging its outcome. Without this the assertion below
+# passes trivially, because no status has been rendered yet.
+- extendedWaitUntil:
+    visible: "Fetch"
+    timeout: 20000
+- waitForAnimationToEnd:
+    timeout: 10000
+
+# The silent-defaults class. `cert_mismatch` is what the server returns when the SDK cannot prove
+# which certificate signed the APK — the exact failure that made this sample read its bundled
+# defaults while appearing to work. If PlatformIdentity ever stops resolving the digest, this is
+# the line that goes red.
+- assertNotVisible: "cert_mismatch"

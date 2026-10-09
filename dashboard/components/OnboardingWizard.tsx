@@ -95,9 +95,22 @@ export function OnboardingWizard({ firstRun }: { firstRun: boolean }) {
   return (
     <div className="min-h-screen bg-surface_variant">
       <header className="border-b border-outline_variant bg-surface">
-        <div className="mx-auto flex max-w-4xl items-center gap-2.5 px-6 py-3.5">
-          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary font-mono text-xs font-bold text-on_primary">rc</span>
-          <span className="font-headline text-base font-bold tracking-tight">rconfig</span>
+        <div className="mx-auto flex max-w-4xl items-center justify-between gap-4 px-6 py-3.5">
+          <Link href="/dashboard" className="flex items-center gap-2.5">
+            <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary font-mono text-xs font-bold text-on_primary">rc</span>
+            <span className="font-headline text-base font-bold tracking-tight">rconfig</span>
+          </Link>
+          {/* The way OUT. The wizard renders outside the dashboard shell, so without this the
+              only exit is the browser's back button — and while the dashboard still redirected
+              a zero-app account here, back navigation bounced straight back in. */}
+          <Link
+            href="/dashboard"
+            data-testid="onboard-exit"
+            className="inline-flex items-center gap-1 text-sm font-medium text-secondary transition-colors hover:text-on_surface"
+          >
+            <span className="material-symbols-outlined text-[18px]" aria-hidden>close</span>
+            Cancel
+          </Link>
         </div>
       </header>
 

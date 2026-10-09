@@ -18,6 +18,15 @@ version = providers.gradleProperty("kmpremoteconfig.version").get()
 
 @OptIn(ExperimentalKotlinGradlePluginApi::class)
 kotlin {
+    // Toolchain 21, not just jvmTarget 21.
+    //
+    // `jvmTarget` controls the bytecode we EMIT; it says nothing about the JDK that RUNS the
+    // tests. Gradle here launches on JDK 17, so with target-only the suite still failed with
+    // UnsupportedClassVersionError the moment it touched KmpToolkit's Java-21 classes — the
+    // exact error the raise was meant to remove. Declaring the toolchain makes the compile and
+    // test JVMs explicit instead of inheriting whatever JDK started the daemon.
+    jvmToolchain(21)
+
     applyDefaultHierarchyTemplate()
 
     android {
@@ -40,7 +49,19 @@ kotlin {
         }
 
         compilerOptions {
-            jvmTarget = JvmTarget.JVM_11
+            // JVM 21, raised from 11 (2026-10-09).
+            //
+            // KmpToolkit publishes its JVM artifacts at Java 21 — cmp-observe already, and
+            // cmp-open-url which the ActionDispatcher needs so a dashboard-authored CTA opens
+            // something. At JVM 11 those classes cannot load: cmp-observe's already degrades
+            // silently (RemoteConfigService catches the UnsupportedClassVersionError and falls
+            // back on the SDK version header), and cmp-open-url would have been a hard failure
+            // on the CTA path plus untestable, since this module's suite runs on the JVM.
+            //
+            // The cost is deliberate and is the operator's call: consumers on JVM 11-20 can no
+            // longer take this library. Raising the floor was chosen over shipping CTAs that
+            // only work on three of six platforms.
+            jvmTarget = JvmTarget.JVM_21
         }
         androidResources.enable = true
     }

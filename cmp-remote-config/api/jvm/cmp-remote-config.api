@@ -718,3 +718,9 @@ public final class com/mobilebytelabs/remoteconfig/network/RemoteConfigService {
 	public final fun recordEvents (Ljava/lang/String;Ljava/util/List;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 
+public final class com/mobilebytelabs/remoteconfig/platform/PlatformIdentity {
+	public static final field INSTANCE Lcom/mobilebytelabs/remoteconfig/platform/PlatformIdentity;
+	public final fun getPlatform ()Ljava/lang/String;
+	public final fun getSigningDigest ()Ljava/lang/String;
+}
+

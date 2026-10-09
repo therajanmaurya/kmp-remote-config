@@ -18,6 +18,10 @@ TESTS=(
   parameter_test.sql
   settings_test.sql
   rollout_test.sql
+  # Added 2026-10-09: both existed but were never listed here, so ~25 assertions covering
+  # access tokens and the authorization funnel had never run in the suite.
+  access_token_test.sql
+  rconfig_api_test.sql
   rls_test.sql
 )
 

@@ -50,7 +50,8 @@ tasks.withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
         txt.required.set(false)
         sarif.required.set(false)
     }
-    jvmTarget = "11"
+    // Detekt analyses against the same target the modules compile to.
+    jvmTarget = "21"
 }
 
 // Spotless configuration for code formatting

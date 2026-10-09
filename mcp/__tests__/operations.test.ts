@@ -1,138 +1,170 @@
 import { strict as assert } from "node:assert"
 import { test } from "node:test"
 import {
-  addOverride, createParameter, onboardApp, publish, rollback,
+  addOverride, createApiClient, createParameter, listApps, listParameters,
+  onboardApp, publish, rollback, type ApiClient,
 } from "../src/operations.ts"
 
 /**
- * The operations layer, against a stubbed Supabase client.
+ * The operations layer.
  *
- * What these pin is ERROR TRANSLATION. An MCP tool's output is read by a model deciding what to
- * do next, so `duplicate key value violates unique constraint "parameter_value_priority_unique"`
- * is worse than useless — it names an internal constraint and suggests no action. Every
- * assertion below checks the message says what to change AND that the raw constraint name does
- * not survive.
+ * This server holds NO Supabase key. Its only credential is an access token, presented as a
+ * bearer credential to `v1-admin`, which forwards it to `api.rconfig_api` — the single funnel
+ * that authenticates, checks the permission and checks the app scope BEFORE it looks at which
+ * operation was asked for.
+ *
+ * So the things worth pinning here are narrow and specific:
+ *
+ *   1. The token actually reaches the wire, in the Authorization header. Nothing downstream of
+ *      this module can notice if it does not — the request simply arrives unauthenticated.
+ *   2. Each operation sends its own op name and args, so the funnel can scope-check it.
+ *   3. A TRANSPORT failure is distinguishable from a REFUSAL. "could not reach the control
+ *      plane" sends someone to check the network; a refusal sends them to fix a permission.
+ *
+ * The refusals themselves are authored and tested in SQL
+ * (`supabase/tests/rconfig_api_test.sql`), which can assert that a refusal actually PREVENTED
+ * the write — something a stub here cannot.
  */
 
-type Row = Record<string, unknown>
+const TOKEN = "rcp_" + "a".repeat(40)
+const URL_ = "https://example.supabase.co/functions/v1"
 
-/** Minimal stand-in: each table/rpc call returns whatever the test stages. */
-function stubDb(staged: {
-  insert?: { data?: Row | null; error?: { code?: string; message?: string } | null }
-  rpc?: { data?: unknown; error?: { message?: string } | null }
-}) {
-  const chain: Record<string, unknown> = {}
-  const self: Record<string, unknown> = new Proxy(chain, {
-    get(_t, prop) {
-      if (prop === "single") return async () => staged.insert ?? { data: null, error: null }
-      if (prop === "then") return undefined
-      return () => self
-    },
-  })
-  return {
-    from: () => ({
-      insert: (_rows: unknown) => {
-        const r = staged.insert ?? { data: null, error: null }
-        // `.insert()` is awaited directly in some paths and `.select().single()` in others.
-        return Object.assign(Promise.resolve(r), { select: () => self })
-      },
-      upsert: async () => ({ error: null }),
-      select: () => self,
-    }),
-    rpc: async () => staged.rpc ?? { data: null, error: null },
-  } as never
+/** Captures what the client would put on the wire. */
+function stubFetch(reply: { status?: number; body?: unknown; throws?: string }) {
+  const seen: { url: string; headers: Record<string, string>; body: { op: string; args: unknown } }[] = []
+  const original = globalThis.fetch
+  globalThis.fetch = (async (url: string, init: RequestInit) => {
+    if (reply.throws) throw new Error(reply.throws)
+    seen.push({
+      url: String(url),
+      headers: init.headers as Record<string, string>,
+      body: JSON.parse(String(init.body)),
+    })
+    return {
+      status: reply.status ?? 200,
+      json: async () => reply.body ?? { data: {} },
+    } as Response
+  }) as typeof fetch
+  return { seen, restore: () => { globalThis.fetch = original } }
 }
 
-test("a duplicate override priority says which number collided, not which constraint", async () => {
-  const db = stubDb({
-    insert: {
-      error: { code: "23505", message: 'duplicate key value violates unique constraint "parameter_value_priority_unique"' },
-    },
-  })
-  const res = await addOverride(db, { parameter_id: "p", condition_id: "c", value: true, priority: 3 })
-  assert.ok("error" in res)
-  assert.match(res.error, /priority 3/)
-  assert.match(res.error, /lower wins/i)
-  assert.doesNotMatch(res.error, /parameter_value_priority_unique/)
+test("the access token is sent as a bearer credential on every operation", async () => {
+  // Enumerated rather than spot-checked. An operation whose request lacked the header would
+  // arrive unauthenticated, and this module is the last place that could notice.
+  const cases: [string, (c: ApiClient) => Promise<unknown>][] = [
+    ["list_apps", (c) => listApps(c, TOKEN)],
+    ["list_parameters", (c) => listParameters(c, TOKEN, "app-1")],
+    ["onboard_app", (c) => onboardApp(c, TOKEN, { display_name: "A", bundle_id: "com.a", platforms: ["android"] })],
+    ["create_parameter", (c) => createParameter(c, TOKEN, "app-1", { key: "k", type: "boolean", default_value: true })],
+    ["add_override", (c) => addOverride(c, TOKEN, { parameter_id: "p", condition_id: "c", value: 1 })],
+    ["publish", (c) => publish(c, TOKEN, "app-1")],
+    ["rollback", (c) => rollback(c, TOKEN, "app-1", 3)],
+  ]
+  for (const [op, run] of cases) {
+    const f = stubFetch({})
+    try {
+      await run(createApiClient(URL_, TOKEN))
+      assert.equal(f.seen.length, 1, `${op} made ${f.seen.length} requests, expected 1`)
+      assert.equal(f.seen[0].headers.Authorization, `Bearer ${TOKEN}`, `${op} did not send the token`)
+      assert.equal(f.seen[0].body.op, op, `${op} was sent as ${f.seen[0].body.op}`)
+      assert.match(f.seen[0].url, /\/v1-admin$/, `${op} did not target v1-admin`)
+    } finally {
+      f.restore()
+    }
+  }
 })
 
-test("attaching the same condition twice is explained in words", async () => {
-  const db = stubDb({
-    insert: { error: { code: "23505", message: 'duplicate key value violates unique constraint "parameter_value_once_per_condition"' } },
-  })
-  const res = await addOverride(db, { parameter_id: "p", condition_id: "c", value: true, priority: 9 })
-  assert.ok("error" in res)
-  assert.match(res.error, /already attached/i)
+test("no Supabase key of any kind is sent", async () => {
+  // The point of the whole change: this process holds a token and nothing else. A stray apikey
+  // header would mean a key is back in the client's hands.
+  const f = stubFetch({})
+  try {
+    await listApps(createApiClient(URL_, TOKEN), TOKEN)
+    const keys = Object.keys(f.seen[0].headers).map((k) => k.toLowerCase())
+    assert.ok(!keys.includes("apikey"), "an apikey header was sent")
+    assert.deepEqual(keys.sort(), ["authorization", "content-type"])
+  } finally {
+    f.restore()
+  }
 })
 
-test("a type mismatch names the declared type", async () => {
-  const db = stubDb({ insert: { error: { code: "23514", message: 'violates check constraint "parameter_default_matches_type"' } } })
-  const res = await createParameter(db, "app", { key: "flag", type: "boolean", default_value: "yes" })
-  assert.ok("error" in res)
-  assert.match(res.error, /boolean/)
-  assert.doesNotMatch(res.error, /parameter_default_matches_type/)
+test("an app-scoped operation names its app so the funnel can scope-check it", async () => {
+  const f = stubFetch({})
+  try {
+    await listParameters(createApiClient(URL_, TOKEN), TOKEN, "app-42")
+    assert.equal((f.seen[0].body.args as { app_id: string }).app_id, "app-42")
+  } finally {
+    f.restore()
+  }
 })
 
-test("a bad parameter key is refused BEFORE the database sees it", async () => {
-  // No error staged: the function must reject this itself, or the operator gets a constraint
-  // name for a value they typed.
-  const db = stubDb({})
-  const res = await createParameter(db, "app", { key: "Welcome Banner", type: "boolean", default_value: false })
-  assert.ok("error" in res)
-  assert.match(res.error, /lower_snake_case/)
+test("add_override sends no app_id — the funnel resolves it from the parameter", async () => {
+  // Deliberate, and the reason migration 017 scope-checks this one via its parameter: the
+  // generic check keys on app_id, so the one write that changes what a targeted audience
+  // receives would otherwise skip it entirely.
+  const f = stubFetch({})
+  try {
+    await addOverride(createApiClient(URL_, TOKEN), TOKEN, { parameter_id: "p", condition_id: "c", value: 1 })
+    assert.ok(!("app_id" in (f.seen[0].body.args as object)))
+    assert.equal((f.seen[0].body.args as { parameter_id: string }).parameter_id, "p")
+  } finally {
+    f.restore()
+  }
 })
 
-test("onboarding refuses a name with no slug, before creating anything", async () => {
-  const db = stubDb({})
-  const res = await onboardApp(db, { display_name: "!!!", bundle_id: "com.example.app", platforms: ["android"] }, "owner")
-  assert.ok("error" in res)
-  assert.match(res.error, /slug/i)
+test("a refusal is returned verbatim", async () => {
+  // Authored once, in SQL. Re-wording it here would produce a second copy that drifts.
+  const f = stubFetch({ status: 403, body: { error: "this access token needs the 'write' permission. It has: read" } })
+  try {
+    const r = await createParameter(createApiClient(URL_, TOKEN), TOKEN, "app-1",
+      { key: "k", type: "boolean", default_value: true })
+    assert.deepEqual(r, { error: "this access token needs the 'write' permission. It has: read" })
+  } finally {
+    f.restore()
+  }
 })
 
-test("onboarding requires at least one platform", async () => {
-  const db = stubDb({})
-  const res = await onboardApp(db, { display_name: "Sample", bundle_id: "com.example.app", platforms: [] }, "owner")
-  assert.ok("error" in res)
-  assert.match(res.error, /platform/i)
+test("a transport failure is not reported as a refusal", async () => {
+  const f = stubFetch({ throws: "getaddrinfo ENOTFOUND" })
+  try {
+    const r = await listApps(createApiClient(URL_, TOKEN), TOKEN)
+    assert.match((r as { error: string }).error, /could not reach the control plane/)
+    assert.match((r as { error: string }).error, /ENOTFOUND/)
+  } finally {
+    f.restore()
+  }
 })
 
-test("onboarding returns a live and test key per platform, with the SHARED id on each", async () => {
-  // KMP: one application id across every target. The keys must all carry it.
-  let n = 0
-  const db = {
-    from: () => ({
-      insert: (rows: Row[]) => Object.assign(
-        Promise.resolve({ error: null }),
-        { select: () => ({ single: async () => ({ data: { id: "app-1" }, error: null }) }) },
-      ),
-      upsert: async () => ({ error: null }),
-    }),
-    rpc: async () => ({ data: `rck_test_${n++}`, error: null }),
-  } as never
-
-  const res = await onboardApp(db, {
-    display_name: "rconfig Sample",
-    bundle_id: "com.mobilebytesensei.rconfig",
-    platforms: ["android", "ios", "desktop"],
-  }, "owner-1")
-
-  assert.ok(!("error" in res), JSON.stringify(res))
-  assert.equal(res.keys.length, 6, "three platforms × live+test")
-  assert.deepEqual(
-    [...new Set(res.keys.map((k) => k.platform))].sort(),
-    ["android", "desktop", "ios"],
-  )
-  assert.deepEqual([...new Set(res.keys.map((k) => k.environment))].sort(), ["live", "test"])
+test("a non-JSON response reports its status rather than throwing", async () => {
+  // A 502 from the edge runtime arrives as HTML. Letting that throw would surface as an opaque
+  // MCP transport error instead of something a caller can act on.
+  const f = stubFetch({ status: 502, body: undefined })
+  globalThis.fetch = (async () => ({ status: 502, json: async () => { throw new Error("not json") } })) as typeof fetch
+  try {
+    const r = await listApps(createApiClient(URL_, TOKEN), TOKEN)
+    assert.match((r as { error: string }).error, /502/)
+  } finally {
+    f.restore()
+  }
 })
 
-test("publish and rollback surface the new version number", async () => {
-  assert.deepEqual(await publish(stubDb({ rpc: { data: 4 } }), "app"), { version: 4 })
-  // Forward-only: rollback_to returns a NEW version, never the one restored.
-  assert.deepEqual(await rollback(stubDb({ rpc: { data: 5 } }), "app", 2), { version: 5 })
+test("a successful call unwraps the envelope's data", async () => {
+  const f = stubFetch({ body: { data: [{ id: "app-1", slug: "alpha" }] } })
+  try {
+    assert.deepEqual(await listApps(createApiClient(URL_, TOKEN), TOKEN), [{ id: "app-1", slug: "alpha" }])
+  } finally {
+    f.restore()
+  }
 })
 
-test("a failed publish reports why rather than throwing", async () => {
-  const res = await publish(stubDb({ rpc: { error: { message: "not authorised to publish app" } } }), "app")
-  assert.ok("error" in res)
-  assert.match(res.error, /not authorised/)
+test("onboard_app returns the minted keys", async () => {
+  const keys = [{ platform: "android", environment: "live", key: "rck_live_x" }]
+  const f = stubFetch({ body: { data: { app_id: "app-9", keys } } })
+  try {
+    const r = await onboardApp(createApiClient(URL_, TOKEN), TOKEN,
+      { display_name: "A", bundle_id: "com.a", platforms: ["android"] })
+    assert.deepEqual(r, { app_id: "app-9", keys })
+  } finally {
+    f.restore()
+  }
 })

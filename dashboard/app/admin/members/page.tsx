@@ -1,8 +1,8 @@
 export const runtime = "edge"
 
 import { requireUser } from "@/lib/require-user"
-import { loadFleet } from "@/lib/fleet"
-import { OrgShell } from "@/components/OrgShell"
+import { loadAppList } from "@/lib/fleet"
+import { Shell } from "@/components/Shell"
 
 type MemberRow = { user_id: string; role: string; app_id: string }
 
@@ -16,7 +16,7 @@ type MemberRow = { user_id: string; role: string; app_id: string }
  */
 export default async function MembersPage() {
   const { user, supabase } = await requireUser()
-  const fleet = await loadFleet(supabase)
+  const fleet = await loadAppList(supabase)
 
   const { data } = await supabase.from("app_member").select("user_id, role, app_id")
   const rows = (data ?? []) as MemberRow[]
@@ -30,7 +30,7 @@ export default async function MembersPage() {
   }
 
   return (
-    <OrgShell active="Members" userEmail={user.email ?? null} appCount={fleet.length}>
+    <Shell active="Members" userEmail={user.email ?? null} apps={fleet}>
       <div className="p-6">
         <h1 className="font-display text-2xl font-bold tracking-tight">Members</h1>
         <p className="mt-1 max-w-2xl text-sm text-secondary">
@@ -91,6 +91,6 @@ export default async function MembersPage() {
           </p>
         </div>
       </div>
-    </OrgShell>
+    </Shell>
   )
 }

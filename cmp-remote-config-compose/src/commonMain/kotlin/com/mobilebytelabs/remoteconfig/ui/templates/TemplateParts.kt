@@ -22,6 +22,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import com.mobilebytelabs.remoteconfig.ui.LocalDesign
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -63,7 +64,10 @@ internal fun TemplateTitle(text: String, modifier: Modifier = Modifier, center: 
     Text(
         text = text,
         modifier = modifier.fillMaxWidth(),
-        style = MaterialTheme.typography.headlineSmall,
+        // Role comes from the SURFACE, not from this function: a title in a fullscreen takeover
+        // is displaySmall, in a banner it is titleSmall. Hardcoding headlineSmall here is what
+        // made all four surfaces render at the same weight.
+        style = LocalDesign.titleStyle,
         fontWeight = FontWeight.Bold,
         textAlign = if (center) TextAlign.Center else TextAlign.Start,
     )
@@ -74,7 +78,7 @@ internal fun TemplateBodyText(text: String, center: Boolean = false) {
     Text(
         text = text,
         modifier = Modifier.fillMaxWidth(),
-        style = MaterialTheme.typography.bodyMedium,
+        style = LocalDesign.bodyStyle,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         textAlign = if (center) TextAlign.Center else TextAlign.Start,
     )
@@ -120,8 +124,8 @@ internal fun BulletRow(lead: String, detail: String? = null) {
 internal fun PrimaryAction(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Button(
         onClick = onClick,
-        modifier = modifier.fillMaxWidth().height(48.dp),
-        shape = RoundedCornerShape(12.dp),
+        modifier = modifier.fillMaxWidth().height(LocalDesign.actionHeight),
+        shape = LocalDesign.controlShape,
     ) {
         Text(label, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
     }
@@ -139,8 +143,8 @@ internal fun SecondaryAction(label: String, onClick: () -> Unit) {
 internal fun OutlinedAction(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     OutlinedButton(
         onClick = onClick,
-        modifier = modifier.height(48.dp),
-        shape = RoundedCornerShape(12.dp),
+        modifier = modifier.height(LocalDesign.actionHeight),
+        shape = LocalDesign.controlShape,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
         contentPadding = PaddingValues(horizontal = 12.dp),
     ) {
@@ -153,7 +157,7 @@ internal fun OutlinedAction(label: String, modifier: Modifier = Modifier, onClic
 internal fun InsetCard(content: @Composable () -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
+        shape = LocalDesign.controlShape,
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
     ) {
         Box(modifier = Modifier.padding(14.dp)) { content() }
@@ -172,7 +176,9 @@ internal fun TemplateColumn(
 ) {
     Column(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        // Rhythm follows the surface: 6dp in a banner, 20dp in a fullscreen. A single value
+        // across all four is what made the larger surfaces feel cramped and the banner loose.
+        verticalArrangement = Arrangement.spacedBy(LocalDesign.gap),
         horizontalAlignment = horizontalAlignment,
     ) { content() }
 }

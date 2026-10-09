@@ -1,0 +1,133 @@
+# Android launch regression — the one check that requires actually starting the app.
+#
+# WHY THIS EXISTS
+# `sampleAndroidApp` declared `android:name=".MainActivity"`. A leading-dot name resolves against
+# the module's `namespace` (…rconfig.android) while the Kotlin class is …rconfig.MainActivity, so
+# the app died on launch with ClassNotFoundException. It had NEVER started.
+#
+# Every existing lane was green throughout:
+#   - `gradle.yml` / `pr-check.yml` assemble the APK, and manifest component names are never
+#     type-checked against Kotlin packages
+#   - unit tests pass, because none of them instantiates an Activity
+#   - the SDK's own tests pass, because the SDK was fine
+#
+# A build-passes gate structurally cannot see this class. Only launching the app can.
+#
+# WHY IT DOES NOT CALL ci-kmp-library.yml
+# Same reason as native-tests.yml: that reusable workflow gates jobs on `detect-changes`, which
+# for a non-PR event diffs against `origin/${{ github.base_ref || 'development' }}`. This repo's
+# default branch is `dev`, so that ref does not exist and detection falls back to HEAD~1 — a job
+# whose entire purpose is to always run must not depend on change detection. It also has no
+# emulator step to reuse.
+#
+# WHY IT IS PATH-FILTERED RATHER THAN RUN ON EVERY PR
+# An emulator boot plus an APK build is ~10 minutes, and `pr-check.yml` is deliberately the fast
+# gate. The bug class only arises from the android manifest, the sample, or the SDK's android
+# actuals, so the filter below covers exactly the surfaces that can produce it. Push to `dev`
+# runs it unconditionally, which is the backstop for anything the filter misses.
+#
+# WHY THE FLOW DOES NOT ASSERT A SPECIFIC SERVED VALUE
+# `assertNotVisible: cert_mismatch` catches the silent-defaults class without pinning a value
+# such as `777`. Pinning one would couple this lane to published control-plane state, so
+# republishing a parameter in the dashboard would turn CI red for a reason unrelated to the code.
+#
+# KNOWN LIMIT — honest rather than hidden
+# If the control plane is unreachable the sample renders `unavailable`, not `cert_mismatch`, so
+# this lane PASSES during an outage. That is a deliberate false-negative: it never flakes red on
+# someone else's downtime, but it also cannot catch a genuine cert regression while prod is down.
+# The launch assertions are unaffected — they need no network.
+name: Android Launch Regression
+
+on:
+  pull_request:
+    paths:
+      - 'sample/**'
+      - 'sampleAndroidApp/**'
+      - 'cmp-remote-config/src/androidMain/**'
+      - 'cmp-remote-config/src/commonMain/kotlin/com/mobilebytelabs/remoteconfig/platform/**'
+      - 'cmp-remote-config-compose/src/commonMain/kotlin/com/mobilebytelabs/remoteconfig/RemoteConfigDsl.kt'
+      - 'idea-layer/testers/flows/**'
+      - '.github/workflows/android-launch-regression.yml'
+  push:
+    branches: [ "dev" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  launch-regression:
+    name: Launch + render on an emulator
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: 'zulu'
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      # Built BEFORE the emulator starts. The emulator action runs its script inside a
+      # long-lived VM step, and a Gradle failure there is reported as an emulator failure —
+      # which sent an earlier version of this lane looking in the wrong place entirely.
+      - name: Assemble the sample APK
+        run: ./gradlew :sampleAndroidApp:assembleDebug --no-daemon
+
+      - name: Install Maestro
+        run: |
+          curl -Ls https://get.maestro.mobile.dev | bash
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+
+      # Hardware acceleration. Without it the emulator boots under qemu software rendering and
+      # routinely exceeds the job timeout.
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Launch regression on API 34
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          # -no-snapshot so every run is a cold boot. A restored snapshot can carry a previously
+          # installed APK, and this lane exists to prove a FRESH install starts.
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
+          disable-animations: true
+          script: |
+            set -euo pipefail
+            adb install -r sampleAndroidApp/build/outputs/apk/debug/sampleAndroidApp-debug.apk
+
+            # Output is PINNED to the canonical captures directory (RULE-TEST-OUTPUT-LAYOUT-001).
+            # A bare `maestro test` scatters screenshots and device logs into ~/.maestro/tests and
+            # the working directory, which on a runner means they vanish with the VM — exactly
+            # when a failure most needs its evidence.
+            RUN_ID="ci-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}"
+            OUT="idea-layer/testers/captures/${RUN_ID}"
+            mkdir -p "$OUT"
+            maestro test \
+              --test-output-dir "$OUT" \
+              idea-layer/testers/flows/sample/android-launch-regression.yaml
+
+      # on: failure() only. A green run's screenshots are noise; a red run's are the whole reason
+      # anyone opens the job.
+      - name: Upload failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: launch-regression-captures
+          path: idea-layer/testers/captures/
+          retention-days: 7
+          if-no-files-found: warn

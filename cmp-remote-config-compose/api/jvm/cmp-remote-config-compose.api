@@ -75,6 +75,41 @@ public final class com/mobilebytelabs/remoteconfig/ui/ConfigContent$Companion {
 	public final fun from (Lcom/mobilebytelabs/remoteconfig/model/RemoteConfigItem;)Lcom/mobilebytelabs/remoteconfig/ui/ConfigContent;
 }
 
+public final class com/mobilebytelabs/remoteconfig/ui/RemoteConfigDesign {
+	public static final field $stable I
+	public final fun getActionHeight-D9Ej5fM ()F
+	public final fun getBodyStyle ()Landroidx/compose/ui/text/TextStyle;
+	public final fun getContentPadding-D9Ej5fM ()F
+	public final fun getControlShape ()Landroidx/compose/ui/graphics/Shape;
+	public final fun getDetailStyle ()Landroidx/compose/ui/text/TextStyle;
+	public final fun getEyebrowSize-XSAIIZE ()J
+	public final fun getGap-D9Ej5fM ()F
+	public final fun getSurfaceShape ()Landroidx/compose/ui/graphics/Shape;
+	public final fun getTitleStyle ()Landroidx/compose/ui/text/TextStyle;
+}
+
+public final class com/mobilebytelabs/remoteconfig/ui/RemoteConfigDesignKt {
+	public static final fun getLocalRemoteConfigDesignOverrides ()Landroidx/compose/runtime/ProvidableCompositionLocal;
+}
+
+public final class com/mobilebytelabs/remoteconfig/ui/RemoteConfigDesignOverrides {
+	public static final field $stable I
+	public fun <init> ()V
+	public synthetic fun <init> (Landroidx/compose/ui/unit/Dp;Landroidx/compose/ui/unit/Dp;Landroidx/compose/ui/unit/Dp;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Landroidx/compose/ui/unit/Dp;Landroidx/compose/ui/unit/Dp;Landroidx/compose/ui/unit/Dp;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1-lTKBWiU ()Landroidx/compose/ui/unit/Dp;
+	public final fun component2-lTKBWiU ()Landroidx/compose/ui/unit/Dp;
+	public final fun component3-lTKBWiU ()Landroidx/compose/ui/unit/Dp;
+	public final fun copy-ayss5xI (Landroidx/compose/ui/unit/Dp;Landroidx/compose/ui/unit/Dp;Landroidx/compose/ui/unit/Dp;)Lcom/mobilebytelabs/remoteconfig/ui/RemoteConfigDesignOverrides;
+	public static synthetic fun copy-ayss5xI$default (Lcom/mobilebytelabs/remoteconfig/ui/RemoteConfigDesignOverrides;Landroidx/compose/ui/unit/Dp;Landroidx/compose/ui/unit/Dp;Landroidx/compose/ui/unit/Dp;ILjava/lang/Object;)Lcom/mobilebytelabs/remoteconfig/ui/RemoteConfigDesignOverrides;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getControlCornerRadius-lTKBWiU ()Landroidx/compose/ui/unit/Dp;
+	public final fun getMinActionHeight-lTKBWiU ()Landroidx/compose/ui/unit/Dp;
+	public final fun getSurfaceCornerRadius-lTKBWiU ()Landroidx/compose/ui/unit/Dp;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class com/mobilebytelabs/remoteconfig/ui/RemoteConfigHostKt {
 	public static final fun RemoteConfigHost (Lcom/mobilebytelabs/remoteconfig/ui/RemoteConfigViewModel;Lkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;II)V
 }
@@ -95,6 +130,10 @@ public final class com/mobilebytelabs/remoteconfig/ui/RemoteConfigState {
 	public fun hashCode ()I
 	public final fun isLoading ()Z
 	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/mobilebytelabs/remoteconfig/ui/RemoteConfigSurfaceKt {
+	public static final fun RemoteConfigSurface (Lcom/mobilebytelabs/remoteconfig/model/RemoteConfigItem;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function0;Landroidx/compose/runtime/Composer;II)V
 }
 
 public final class com/mobilebytelabs/remoteconfig/ui/RemoteConfigViewModel : androidx/lifecycle/ViewModel {

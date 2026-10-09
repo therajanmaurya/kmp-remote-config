@@ -14,7 +14,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.Icon
+import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.Composable
+import com.mobilebytelabs.remoteconfig.ui.LocalDesign
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -54,7 +59,8 @@ internal fun AnnouncementBody(item: RemoteConfigItem, p: TemplatePayload, a: Tem
 
         VSpace(4)
         PrimaryAction(p.string("cta_label", "Got it")) {
-            a.onPrimary(p.string("cta_action", ActionType.DISMISS.value), p.string("cta_action"))
+            parseCtaAction(p.string("cta_action"), fallback = ActionType.DISMISS)
+                .let { a.onPrimary(it.type.value, it.value) }
         }
         if (item.isDismissible) SecondaryAction("Not now", a.onSecondary)
     }
@@ -121,7 +127,8 @@ internal fun PolicyUpdateBody(item: RemoteConfigItem, p: TemplatePayload, a: Tem
         p.string("effective_at")?.let {
             InsetCard {
                 Text(
-                    "Effective $it",
+                    // Date only: nobody needs to know new terms begin at 00:00 exactly.
+                    "Effective ${formatTimestamp(it, includeTime = false)}",
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -161,7 +168,8 @@ internal fun PaywallBody(item: RemoteConfigItem, p: TemplatePayload, a: Template
         }
         VSpace(4)
         PrimaryAction(p.string("cta_label", "Subscribe")) {
-            a.onPrimary(p.string("cta_action", ActionType.URL.value), p.string("cta_action"))
+            parseCtaAction(p.string("cta_action"), fallback = ActionType.URL)
+                .let { a.onPrimary(it.type.value, it.value) }
         }
         if (item.isDismissible) SecondaryAction("Maybe later", a.onSecondary)
     }
@@ -170,12 +178,31 @@ internal fun PaywallBody(item: RemoteConfigItem, p: TemplatePayload, a: Template
 // ── incident_outage / information / maintenance / geo_notice / onboarding_tip ─
 // Mockup 06. An inline strip, severity-toned, with a status link. Shares one body because the
 // five schemas differ only in which optional field they add.
+/**
+ * Caution. Fixed rather than themed — see the severity mapping in [IncidentBody] for why.
+ *
+ * Chosen to clear WCAG AA against both a light and a dark surface at the size the banner uses;
+ * a brighter amber does not, on white.
+ */
+private val WarningAmber = Color(0xFFB45309)
+
 @Composable
 internal fun IncidentBody(item: RemoteConfigItem, p: TemplatePayload, a: TemplateActions) {
     val severity = p.string("severity", "info")
     val tone = when (severity) {
+        // `error` is the one severity Material gives a semantic role for, so it is themed.
         "critical", "major", "error" -> MaterialTheme.colorScheme.error
-        "warning", "degraded" -> MaterialTheme.colorScheme.tertiary
+        // CAUTION AMBER, fixed — not `tertiary`.
+        //
+        // Material has no warning role, so this used to borrow `tertiary`. But tertiary carries
+        // no meaning: a consumer can set it to anything, and the sample sets it to emerald — so
+        // a "service degraded" banner rendered GREEN, signalling the opposite of what it said.
+        // The SDK cannot signal severity with a colour whose meaning the host controls.
+        //
+        // Same reasoning as the rating stars: caution is a conventional signal and reads as
+        // wrong in any other colour. The surrounding chrome stays themed; only the severity
+        // indicator is pinned, because only it carries meaning the host must not redefine.
+        "warning", "degraded" -> WarningAmber
         else -> MaterialTheme.colorScheme.primary
     }
 
@@ -197,8 +224,13 @@ internal fun IncidentBody(item: RemoteConfigItem, p: TemplatePayload, a: Templat
         Column(modifier = Modifier.fillMaxWidth(0.9f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
+                    // From the SURFACE, not hardcoded. This body backs incident_outage,
+                    // information, maintenance, geo_notice and onboarding_tip — and several of
+                    // those templates allow `dialog` as well as `banner`. Pinned to titleSmall
+                    // it rendered banner-sized type inside a dialog, which is how one body
+                    // serving five templates quietly goes wrong on the less-used surface.
                     text = p.string("title", "Service notice"),
-                    style = MaterialTheme.typography.titleSmall,
+                    style = LocalDesign.titleStyle,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Surface(
@@ -219,7 +251,7 @@ internal fun IncidentBody(item: RemoteConfigItem, p: TemplatePayload, a: Templat
             val end = p.string("window_end")
             if (start != null && end != null) {
                 Text(
-                    "$start — $end",
+                    formatWindow(start, end),
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.Medium,
                 )
@@ -342,14 +374,15 @@ internal fun PromoOfferBody(item: RemoteConfigItem, p: TemplatePayload, a: Templ
         }
         p.string("expires_at")?.let {
             Text(
-                "Expires $it",
+                "Expires ${formatTimestamp(it)}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         VSpace(4)
         PrimaryAction(p.string("cta_label", "Claim offer")) {
-            a.onPrimary(p.string("cta_action", ActionType.URL.value), p.string("cta_action"))
+            parseCtaAction(p.string("cta_action"), fallback = ActionType.URL)
+                .let { a.onPrimary(it.type.value, it.value) }
         }
         if (item.isDismissible) SecondaryAction("No thanks", a.onSecondary)
     }
@@ -359,7 +392,23 @@ internal fun PromoOfferBody(item: RemoteConfigItem, p: TemplatePayload, a: Templ
 @Composable
 internal fun RatingPromptBody(item: RemoteConfigItem, p: TemplatePayload, a: TemplateActions) {
     TemplateColumn(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("★★★★★", fontSize = 24.sp, color = MaterialTheme.colorScheme.tertiary)
+        // Icons, not the "★" character. A text glyph depends on whatever font the platform
+        // falls back to, which is why this rendered in an off-palette weight that looked
+        // broken rather than deliberate — and the fallback differs per platform, so the
+        // surface was inconsistent across the targets this SDK ships to.
+        //
+        // The amber is fixed rather than themed. A star is a conventional signal and reads as
+        // wrong in any other colour; the surrounding chrome stays themed.
+        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+            repeat(5) {
+                Icon(
+                    imageVector = Icons.Filled.Star,
+                    contentDescription = null,
+                    tint = Color(0xFFF5A623),
+                    modifier = Modifier.size(28.dp),
+                )
+            }
+        }
         TemplateTitle(p.string("title", "Enjoying the app?"), center = true)
         p.string("body")?.let { TemplateBodyText(it, center = true) }
         VSpace(4)

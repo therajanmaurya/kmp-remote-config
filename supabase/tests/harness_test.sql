@@ -46,17 +46,37 @@ BEGIN
   --   fork_template (009) — adopting a community template is a dashboard action, so the
   --   operator role must call it. It is SECURITY DEFINER and checks has_app_role on the
   --   DESTINATION app itself, which is stricter than the table policies alone.
+  --
+  -- The allowlist is the set authenticated LEGITIMATELY needs, and it is maintained by hand on
+  -- purpose: adding a row should require saying why. It went stale once — migrations 011-015
+  -- added publish/rollback_to/resolve_* without updating it, and this assertion stayed red and
+  -- unseen because the anon check above short-circuits first. Anything NOT listed here is
+  -- reachable only through a SECURITY DEFINER caller, so the invoking role needs no grant.
   IF EXISTS (
     SELECT 1 FROM pg_proc p
       JOIN pg_namespace n ON n.oid = p.pronamespace
      WHERE n.nspname = 'public'
        AND has_function_privilege('authenticated', p.oid, 'EXECUTE')
-       AND p.proname NOT IN ('is_app_member','has_app_role','generate_publishable_key','fork_template')
+       AND p.proname NOT IN (
+         -- RLS policy expressions — evaluated in the caller's context, so authenticated needs them
+         'is_app_member','has_app_role',
+         -- the dashboard calls these directly as the signed-in operator
+         'generate_publishable_key','fork_template',
+         'publish','rollback_to','resolve_parameters','resolve_parameter_explain',
+         'access_token_create','access_token_revoke'
+       )
   ) THEN
     RAISE EXCEPTION 'FAIL: authenticated can EXECUTE a routine outside the allowlist: %',
       (SELECT string_agg(p.proname, ', ') FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
         WHERE n.nspname='public' AND has_function_privilege('authenticated', p.oid, 'EXECUTE')
-          AND p.proname NOT IN ('is_app_member','has_app_role','generate_publishable_key','fork_template'));
+          AND p.proname NOT IN (
+         -- RLS policy expressions — evaluated in the caller's context, so authenticated needs them
+         'is_app_member','has_app_role',
+         -- the dashboard calls these directly as the signed-in operator
+         'generate_publishable_key','fork_template',
+         'publish','rollback_to','resolve_parameters','resolve_parameter_explain',
+         'access_token_create','access_token_revoke'
+       ));
   END IF;
 
   RAISE NOTICE 'PASS: anon closed out of schema public; routine grants match the allowlist';

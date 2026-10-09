@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!--
+          Initialization hook, not a data surface.
+
+          A ContentProvider is created before Application.onCreate, which is how a library
+          obtains an application Context without asking the consumer to call an init function.
+          Requiring one would add a step that, when forgotten, reproduces the silent
+          serve-your-own-defaults failure that motivated PlatformIdentity in the first place.
+
+          The authority is suffixed with ${applicationId} so two apps on one device — or an app
+          and its own test APK — cannot collide on it. A duplicate authority is an install-time
+          INSTALL_FAILED_CONFLICTING_PROVIDER, which is a confusing way to learn this.
+        -->
+        <provider
+            android:name="com.mobilebytelabs.remoteconfig.platform.RemoteConfigInitProvider"
+            android:authorities="${applicationId}.rconfig-init"
+            android:exported="false"
+            android:initOrder="100" />
+    </application>
+</manifest>

@@ -1,5 +1,6 @@
 import { strict as assert } from "node:assert"
 import { test } from "node:test"
+import { spawn } from "node:child_process"
 import { Client } from "@modelcontextprotocol/sdk/client/index.js"
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 
@@ -12,14 +13,35 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
  * way to check the wiring would be against production.
  */
 
+
+/** Start the server with an overridden environment and capture how it exits. */
+function startWith(overrides: Record<string, string | undefined>) {
+  return new Promise<{ code: number | null; stderr: string }>((resolve) => {
+    const child = spawn("node", ["dist/index.js"], {
+      env: {
+        ...process.env,
+        RCONFIG_FUNCTIONS_URL: "https://example.supabase.co/functions/v1",
+        RCONFIG_ACCESS_TOKEN: "rcp_" + "a".repeat(40),
+        ...overrides,
+      } as NodeJS.ProcessEnv,
+    })
+    let stderr = ""
+    child.stderr.on("data", (d) => { stderr += String(d) })
+    child.on("close", (code) => resolve({ code, stderr }))
+  })
+}
+
 async function connect() {
   const transport = new StdioClientTransport({
     command: "node",
     args: ["dist/index.js"],
     env: {
       ...process.env,
-      RCONFIG_SUPABASE_URL: "https://example.supabase.co",
-      RCONFIG_SERVICE_ROLE_KEY: "handshake-only-not-a-real-key",
+      RCONFIG_FUNCTIONS_URL: "https://example.supabase.co/functions/v1",
+      // Syntactically valid, points nowhere — same convention as the URL above. The server
+      // checks the token's SHAPE at startup and never resolves identity itself, so the
+      // handshake needs no network at all.
+      RCONFIG_ACCESS_TOKEN: "rcp_" + "a".repeat(40),
     },
   })
   const client = new Client({ name: "protocol-test", version: "0" })
@@ -34,7 +56,7 @@ test("the server completes an MCP handshake and lists its tools", async () => {
     const names = tools.map((t) => t.name).sort()
     assert.deepEqual(names, [
       "add_override", "create_condition", "create_parameter", "explain_parameter",
-      "list_apps", "list_conditions", "list_parameters", "list_versions",
+      "issue_key", "list_apps", "list_conditions", "list_parameters", "list_versions",
       "onboard_app", "preview_for_device", "publish", "rollback",
     ])
   } finally {
@@ -86,4 +108,22 @@ test("onboard_app asks for the KMP-shared application id", async () => {
   } finally {
     await client.close()
   }
+})
+
+test("the server refuses to start without an access token", async () => {
+  // Identity now comes from the token rather than an RCONFIG_OWNER_ID env var. Starting
+  // without one would mean a server with no idea who it is acting as.
+  const { code, stderr } = await startWith({ RCONFIG_ACCESS_TOKEN: undefined })
+  assert.equal(code, 2)
+  assert.match(stderr, /RCONFIG_ACCESS_TOKEN/)
+})
+
+test("a publishable key offered as the access token is diagnosed at startup", async () => {
+  // The likeliest mistake, and the one that is otherwise baffling: rck_ is the PUBLIC per-app
+  // key that belongs in source code. Saying so at startup beats a generic auth failure on the
+  // first tool call.
+  const { code, stderr } = await startWith({ RCONFIG_ACCESS_TOKEN: "rck_live_" + "b".repeat(32) })
+  assert.equal(code, 2)
+  assert.match(stderr, /publishable key/i)
+  assert.match(stderr, /rcp_/)
 })

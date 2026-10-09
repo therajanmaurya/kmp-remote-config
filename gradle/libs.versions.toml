@@ -72,6 +72,11 @@ kover = "0.9.9"
 
 [libraries]
 cmp-observe = { module = "io.github.mobilebytelabs:cmp-observe", version.ref = "cmpObserve" }
+# Same provenance as cmp-observe: consumed from Maven Central, never vendored. It carries the
+# expect/actual URL launcher the ActionDispatcher needs so a dashboard-authored CTA opens
+# something — re-implementing that here would duplicate a solved problem across six source sets.
+# Published at Java 21, which is why this repo's jvmTarget was raised to match.
+cmp-open-url = { module = "io.github.mobilebytelabs:cmp-open-url", version.ref = "cmpObserve" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }

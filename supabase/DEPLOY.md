@@ -473,3 +473,50 @@ callers would make "10%" mean "10% plus everyone we cannot identify".
 **Edge caching is dropped while any config is partially rolled out**, because the response becomes
 device-specific. A shared cache entry would hand one device's rollout membership to every other
 device behind it. Responses with nothing staged keep the 60s shared cache.
+
+## issue_key (migration 019) — deployed 2026-10-09
+
+```bash
+bash core/scripts/supabase-connect.sh db-push supabase/migrations/019_issue_key.sql \
+  --target mbs/kmp-remote-config
+# → CREATE FUNCTION / REVOKE
+```
+
+No function redeploy is needed. `v1-admin` passes `op` through to the funnel without an
+allowlist, so a new operation is reachable the moment the migration lands.
+
+**What it fixes.** `onboard_app` mints keys only while CREATING an app, and refuses a slug that
+already exists. So an app registered for one platform that later shipped on another had no API
+path to a key for it — and could not reuse the first one, because `app_key.platform` is enforced
+rather than advisory (`_shared/identity.ts` → 403 `platform_mismatch`). The only route left was a
+direct write to `app_key`, which is exactly the unscoped database access migration 017 removes.
+
+Found while wiring the iOS sample host, whose `Fetch` answered `key_invalid`.
+
+**The diagnosis that prompted it was wrong, and the op is still right.** `key_invalid` was read as
+"this app has no iOS key", but `rconfig-sample` was onboarded WITH `ios` and had one all along —
+the host simply had a placeholder in `ContentView.swift`, because until that day there was no iOS
+host to put a key in. The first call to `issue_key` on prod is what established this: it refused
+and named the existing key, which is how the key was recovered. An app genuinely onboarded
+without a platform still had no API path to one, so the gap is real — it just was not this app's
+problem.
+
+**Shape.** `issue_key(app_id, platform, [environment], [bundle_id], [cert_digests], [rotate])`.
+Both environments by default, as onboarding does per platform; `environment` narrows it. The
+bundle id is inherited from the app's existing keys. A repeat call is REFUSED and names the
+existing key — running the same command twice is a likelier explanation than an intended
+rotation — and `rotate: true` overrides that. `app.platforms` is updated so the app row does not
+go on describing itself as single-platform.
+
+Postgres cannot add a branch to an existing function, so 019 restates `rconfig_api` in full. The
+body is 017's plus two loop locals, one row in the permission CASE and one dispatch branch; the
+diff is three hunks with zero removals. 017 stays the readable origin of the design, 019 is the
+definition in force.
+
+**Proof:** 11 assertions in `supabase/tests/rconfig_api_test.sql` (10 + 1 control), red before
+the migration (`unknown operation: issue_key`) and green after; plus a local round trip through
+`v1-admin` over HTTP covering both the mint and the duplicate refusal.
+
+While wiring this up: `access_token_test.sql` and `rconfig_api_test.sql` were never listed in
+`supabase/tests/run.sh`, so ~25 assertions covering access tokens and the authorization funnel
+had never run in the suite. Both are now in it — 15 files, all passing.

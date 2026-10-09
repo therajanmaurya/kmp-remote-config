@@ -21,8 +21,10 @@ android {
     }
     buildTypes { getByName("release") { isMinifyEnabled = false } }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        // Must match the Kotlin jvmTarget of the modules this app consumes, or AGP fails
+        // the build with a source/target mismatch rather than a useful message.
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
     }
     packaging { resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" } }
 }

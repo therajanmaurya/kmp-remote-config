@@ -8,8 +8,23 @@
         android:label="rconfig sample"
         android:supportsRtl="true"
         android:theme="@style/Theme.RconfigSample">
+        <!--
+          FULLY QUALIFIED, not ".MainActivity".
+
+          A leading-dot name is resolved against the module's `namespace`, which here is
+          `com.mobilebytesensei.rconfig.android` — deliberately distinct from the shared
+          `:sample` module's `com.mobilebytesensei.rconfig` so the two R classes do not clash.
+          But MainActivity.kt declares `package com.mobilebytesensei.rconfig`, so ".MainActivity"
+          pointed at a class that does not exist.
+
+          Nothing caught it at build time: manifest component names are not checked against
+          Kotlin packages, so the APK assembled cleanly and died on launch with
+          ClassNotFoundException. This app had never started. Found by the first real device
+          run of /idea-rconfig (2026-10-09) — a build-passes check could not have seen it,
+          which is the entire argument for device truth.
+        -->
         <activity
-            android:name=".MainActivity"
+            android:name="com.mobilebytesensei.rconfig.MainActivity"
             android:exported="true"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode">
             <intent-filter>

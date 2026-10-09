@@ -59,3 +59,37 @@ export async function loadFleet(supabase: SupabaseClient): Promise<AppRow[]> {
     }),
   )
 }
+
+/**
+ * Just enough of every app to populate the sidebar switcher.
+ *
+ * Deliberately NOT `loadFleet` — that computes a publish diff per app, which is the right cost
+ * for the matrix that displays those numbers and the wrong cost for a dropdown that shows
+ * names. The switcher renders on every app-scoped page.
+ */
+export async function loadAppList(
+  supabase: SupabaseClient,
+): Promise<Pick<AppRow, "id" | "slug" | "display_name">[]> {
+  const { data } = await supabase
+    .from("app")
+    .select("id, slug, display_name")
+    .order("display_name")
+  return data ?? []
+}
+
+/**
+ * The organisation summary cards.
+ *
+ * Lives here rather than inline in the page because an empty account is now a rendered state
+ * rather than a redirect, so these sums are exercised by the very first screen a new operator
+ * sees. `liveVersion` is null until an app's first publish — counted as 0 revisions, never
+ * skipped, so the apps count and the parameter count stay consistent with each other.
+ */
+export function fleetTotals(fleet: AppRow[]) {
+  return {
+    apps: fleet.length,
+    parameters: fleet.reduce((n, a) => n + a.parameters, 0),
+    revisions: fleet.reduce((n, a) => n + (a.liveVersion ?? 0), 0),
+    keys: fleet.reduce((n, a) => n + a.keys, 0),
+  }
+}
