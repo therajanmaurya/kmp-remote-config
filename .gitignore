@@ -99,3 +99,10 @@ package-lock.json
 docs/_build/
 site/
 .claude/settings.local.json
+
+# Secret material materialized for edge-function deploys — never tracked (RULE-SECRETS-VAULT-001).
+__supabase_edge__
+
+# Maestro writes takeScreenshot output to the CWD; captures belong under
+# idea-layer/testers/captures/ (RULE-TEST-OUTPUT-LAYOUT-001), never a source root.
+/*.png
