@@ -15,3 +15,8 @@ actual fun currentReachability(): Reachability = runCatching {
     if (navigatorOnLine()) Reachability.Reachable else Reachability.Unreachable
     // No `navigator` at all — a worker or a non-browser host — is Unknown, never offline.
 }.getOrDefault(Reachability.Unknown)
+
+/**
+ * Nothing to start: this platform's check is a synchronous read, answered on demand.
+ */
+public actual fun startReachabilityMonitoring() = Unit

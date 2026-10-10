@@ -12,3 +12,8 @@ package com.mobilebytelabs.remoteconfig.platform
  * Desktop and the native targets have no cheap, dependency-free answer at all.
  */
 actual fun currentReachability(): Reachability = Reachability.Unknown
+
+/**
+ * Nothing to start: this platform's check is a synchronous read, answered on demand.
+ */
+public actual fun startReachabilityMonitoring() = Unit

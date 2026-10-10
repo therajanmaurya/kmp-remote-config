@@ -39,10 +39,32 @@ public enum class Reachability {
 /**
  * Best-effort connectivity, cheap enough to call before every fetch.
  *
- * Implemented where the platform offers a synchronous, dependency-free answer — Android and the
- * browser. Elsewhere it returns [Reachability.Unknown] rather than a plausible-looking guess:
- * an iOS implementation via `NWPathMonitor` is asynchronous and fiddly from Kotlin/Native, and
- * shipping one that is subtly wrong would be worse than shipping none, because it would skip
- * fetches that should have happened.
+ * Implemented on Android (`ConnectivityManager`), Apple (`NWPathMonitor`) and the browser
+ * (`navigator.onLine`). On the JVM, Linux and Windows it returns [Reachability.Unknown] — there
+ * is no cheap, dependency-free answer, and a plausible-looking guess would skip fetches that
+ * should have happened.
+ *
+ * Apple answers from a monitor started by [startReachabilityMonitoring]; before its first
+ * callback arrives the answer is [Reachability.Unknown], which proceeds exactly as an
+ * unimplemented platform would.
  */
 public expect fun currentReachability(): Reachability
+
+/**
+ * Begin watching connectivity, if this platform needs to.
+ *
+ * Called once from `Module.remoteConfig { }` at DI setup. Idempotent, non-blocking, and a no-op
+ * on every platform whose check is a synchronous read.
+ *
+ * It exists for Apple. `NWPathMonitor` is a watcher, not a probe: it reports the current path
+ * through a callback shortly after starting and then on every change. A synchronous
+ * [currentReachability] can only answer from what the monitor has already reported — so if the
+ * monitor first starts when the first fetch asks, the answer is [Reachability.Unknown] and the
+ * check does nothing on the one launch it was meant to help.
+ *
+ * Starting at DI setup gives it the span between Koin configuration and first composition,
+ * which is far longer than the callback needs. The alternative — blocking the caller until the
+ * first path update — would trade a ten-second timeout for a stall on whichever thread the
+ * fetch happens to start from, which is a worse bargain.
+ */
+public expect fun startReachabilityMonitoring()

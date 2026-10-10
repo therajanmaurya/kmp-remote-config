@@ -2,6 +2,7 @@ package com.mobilebytelabs.remoteconfig
 
 import com.mobilebytelabs.remoteconfig.platform.Reachability
 import com.mobilebytelabs.remoteconfig.platform.currentReachability
+import com.mobilebytelabs.remoteconfig.platform.startReachabilityMonitoring
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
@@ -41,5 +42,15 @@ class ReachabilityTest {
         // the ten-second wait this was meant to avoid.
         assertTrue(Reachability.Unknown != Reachability.Unreachable)
         assertTrue(Reachability.entries.size == 3)
+    }
+
+    @Test
+    fun starting_the_monitor_is_idempotent_and_does_not_throw() {
+        // Called from `Module.remoteConfig { }`, which an app may configure more than once in a
+        // process — tests, a multi-module app, a Koin reload. On Apple each call would
+        // otherwise create another NWPathMonitor and leak the dispatch queue holding it, so the
+        // guard there is a compareAndSet rather than a bare flag.
+        repeat(5) { startReachabilityMonitoring() }
+        assertTrue(currentReachability() in Reachability.entries)
     }
 }

@@ -767,5 +767,6 @@ public final class com/mobilebytelabs/remoteconfig/platform/Reachability : java/
 
 public final class com/mobilebytelabs/remoteconfig/platform/Reachability_jvmKt {
 	public static final fun currentReachability ()Lcom/mobilebytelabs/remoteconfig/platform/Reachability;
+	public static final fun startReachabilityMonitoring ()V
 }
 

@@ -27,3 +27,8 @@ actual fun currentReachability(): Reachability = runCatching {
     // A SecurityException (permission stripped by the host app) or a missing service must not
     // stop a fetch that might have worked.
 }.getOrDefault(Reachability.Unknown)
+
+/**
+ * Nothing to start: this platform's check is a synchronous read, answered on demand.
+ */
+public actual fun startReachabilityMonitoring() = Unit

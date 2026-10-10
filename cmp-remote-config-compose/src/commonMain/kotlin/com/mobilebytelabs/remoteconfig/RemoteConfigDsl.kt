@@ -1,5 +1,6 @@
 package com.mobilebytelabs.remoteconfig
 
+import com.mobilebytelabs.remoteconfig.platform.startReachabilityMonitoring
 import com.mobilebytelabs.remoteconfig.platform.PlatformIdentity
 
 import io.ktor.client.HttpClient
@@ -43,6 +44,12 @@ import org.koin.core.module.dsl.viewModelOf
  * action CTAs route to handlers registered here.
  */
 fun Module.remoteConfig(block: RemoteConfigBuilder.() -> Unit) {
+    // Started here, at DI setup, rather than lazily at first use. On Apple the check reads what
+    // NWPathMonitor last reported, and a monitor started by the first fetch has not reported
+    // yet — so the one launch the check exists to help is the one launch it would miss. A no-op
+    // everywhere else.
+    startReachabilityMonitoring()
+
     val builder = RemoteConfigBuilder().apply(block)
     val settings = builder.build()
 
