@@ -97,7 +97,24 @@ class RemoteConfigViewModel(
             // The scope bounds the REQUEST, not just the render: a screen that hosts two
             // templates has no use for the other thirteen, and shipping them anyway costs
             // payload and hands the client content it will only discard.
-            val result = withTimeoutOrNull(FETCH_TIMEOUT_MS) { service.fetchConfigs(screen, templates) }
+            // Two budgets, because the two cases are not the same risk.
+            //
+            // A REFRESH has something to show already — the delivered set, or the cached config
+            // the unavailable branch falls back to — so being impatient costs the user nothing
+            // they can see, and holding the loading state open is the worse trade.
+            //
+            // A FIRST fetch has nothing. Giving up at 2.5s there means the app shows bundled
+            // defaults and no remote config at all, silently, and the SDK looks like it does
+            // not work. Observed on a cold start that took 1m39s on a slow device: the budget
+            // expired, the log said `configs_fetch_failed`, and a correctly configured app
+            // served its defaults with nothing to say why.
+            //
+            // Waiting longer is close to free: the host renders nothing while loading either
+            // way, so the only cost is WHEN the config appears, not whether the UI is blocked.
+            val hasFallback = _state.value.delivered.isNotEmpty() || localStore.getCachedConfig() != null
+            val budget = if (hasFallback) FETCH_TIMEOUT_MS else FIRST_FETCH_TIMEOUT_MS
+
+            val result = withTimeoutOrNull(budget) { service.fetchConfigs(screen, templates) }
 
             when (result) {
                 is ConfigFetchResult.Success -> {
@@ -279,7 +296,17 @@ class RemoteConfigViewModel(
     }
 
     private companion object {
+        /** Refresh budget: there is already something on screen, so do not hold the state open. */
         const val FETCH_TIMEOUT_MS = 2500L
+
+        /**
+         * First-fetch budget, when there is nothing cached to fall back on.
+         *
+         * Ten seconds is long for a UI timeout and deliberately so — nothing is blocked on it.
+         * The alternative is an app that silently serves bundled defaults on every slow cold
+         * start, which reads as "the SDK does not work" rather than "the network was slow".
+         */
+        const val FIRST_FETCH_TIMEOUT_MS = 10_000L
     }
 }
 

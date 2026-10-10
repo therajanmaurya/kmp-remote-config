@@ -13,6 +13,7 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -343,5 +344,61 @@ class ScopedHostTest {
         v.offerCandidate(empty, null)
         v.offerCandidate(real, v.activeFor(scope(RemoteConfigTemplate.Announcement)))
         assertEquals(real, v.surfaceOwner.value)
+    }
+
+    // ── the two fetch budgets ──────────────────────────────────────────────────────────────
+
+    /** A service whose response takes `delayMs`, so a budget can actually be exceeded. */
+    private fun slowVm(delayMs: Long): RemoteConfigViewModel {
+        val engine = MockEngine {
+            delay(delayMs)
+            respond(
+                content = """{"schema_version":1,"configs":[${item("a", "announcement")}]}""",
+                status = HttpStatusCode.OK,
+                headers = headersOf(HttpHeaders.ContentType, "application/json"),
+            )
+        }
+        val service = RemoteConfigService(
+            baseUrl = "https://example.supabase.co/functions/v1",
+            publishableKey = "rck_test_abc",
+            packageName = "com.example.app",
+            platform = "android",
+            appVersion = "1.0.0",
+            httpClient = HttpClient(engine),
+            deviceId = "device-under-test",
+        )
+        val store = RemoteConfigLocalStore(MapSettings())
+        return RemoteConfigViewModel(
+            service = service,
+            evaluator = RemoteConfigEvaluator(store),
+            localStore = store,
+            deviceIdProvider = DeviceIdProvider(MapSettings()),
+        )
+    }
+
+    @Test
+    fun a_first_fetch_waits_longer_than_the_refresh_budget() = runBlocking {
+        // 4s is past the 2.5s refresh budget and inside the 10s first-fetch one. With a single
+        // budget this is the cold start that silently serves bundled defaults and logs a
+        // transport failure — observed on a device that took 1m39s to start.
+        val v = slowVm(4_000)
+        v.fetchAndSettle()
+        assertEquals("a", v.state.value.activeConfig?.id, "the first fetch gave up too early")
+    }
+
+    @Test
+    fun a_refresh_gives_up_early_because_something_is_already_on_screen() = runBlocking {
+        // The other half: once there IS something to show, holding the loading state open for
+        // ten seconds is the worse trade. Same 4s response, now exceeding the budget.
+        val v = slowVm(4_000)
+        v.fetchAndSettle()
+        assertEquals("a", v.state.value.activeConfig?.id, "precondition: the first fetch landed")
+
+        v.fetchAndEvaluate()
+        withTimeout(10_000) { v.state.first { !it.isLoading } }
+        // The refresh timed out, so the previous answer stands rather than being cleared —
+        // a slow refresh must never blank a config the user is looking at.
+        assertEquals("a", v.state.value.activeConfig?.id)
+        assertEquals(null, v.state.value.rejection, "a timeout is not a rejection")
     }
 }
