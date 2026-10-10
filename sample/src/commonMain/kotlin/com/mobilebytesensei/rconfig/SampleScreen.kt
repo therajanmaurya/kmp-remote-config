@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.mobilebytelabs.remoteconfig.model.RemoteConfigTemplate
 import com.mobilebytelabs.remoteconfig.ui.RemoteConfigHost
 import com.mobilebytelabs.remoteconfig.ui.RemoteConfigSurface
 import com.mobilebytelabs.remoteconfig.model.DisplayType
@@ -42,6 +43,24 @@ import kotlinx.coroutines.launch
  * sometimes the second, and the library is split into two artefacts precisely so taking the
  * values does not drag a renderer onto a target that has no Compose runtime.
  */
+/**
+ * What THIS screen is willing to show.
+ *
+ * A real app declares this per screen rather than leaving it app-wide, which is what keeps a
+ * paywall off a settings screen: the settings screen simply never names it. Note what is
+ * absent — `paywall_upsell` and `promo_offer` belong on a screen that sells something,
+ * `survey_nps` after a task rather than on arrival.
+ *
+ * These four are the ones that legitimately interrupt on app open: a required update, changed
+ * terms, a launch announcement, and an incident the user is probably already feeling.
+ */
+private val HomeTemplates = arrayOf(
+    RemoteConfigTemplate.UpdateAvailable,
+    RemoteConfigTemplate.PolicyUpdate,
+    RemoteConfigTemplate.Announcement,
+    RemoteConfigTemplate.IncidentOutage,
+)
+
 @Composable
 fun SampleScreen(config: SampleRemoteConfig) {
     val scope = rememberCoroutineScope()
@@ -127,19 +146,28 @@ fun SampleScreen(config: SampleRemoteConfig) {
                     )
                 } else {
                     Text(
-                        "active: ${active.template} \u00b7 ${active.display}",
+                        "active app-wide: ${active.template} \u00b7 ${active.display}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    // Unscoped: whatever the evaluator picked, app-wide. A real screen usually
-                    // names what it hosts instead —
-                    //
-                    //     RemoteConfigHost(RemoteConfigTemplate.UpdateAvailable, RemoteConfigTemplate.PolicyUpdate)
-                    //
-                    // which bounds this screen to those templates and lets a paywall live on
-                    // the screen that actually sells something. This sample stays unscoped on
-                    // purpose: its job is to show whatever the operator published.
-                    RemoteConfigHost()
+                    Text(
+                        "this screen hosts: " + HomeTemplates.joinToString(" \u00b7 ") { it.id },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    // The point of the scope, made visible. Deliberately does NOT claim this is
+                    // why nothing rendered: a declared template can also be sitting out because
+                    // its impression cap is spent, and attributing that to the scope would
+                    // teach the reader something false about their own app.
+                    if (HomeTemplates.none { it.id == active.template }) {
+                        Text(
+                            "${active.template} is live app-wide, but this screen did not declare " +
+                                "it \u2014 so it can only appear in the gallery below, never here.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                    RemoteConfigHost(*HomeTemplates)
                 }
 
                 // GALLERY: every template the control plane delivered, on demand.

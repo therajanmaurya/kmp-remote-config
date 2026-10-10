@@ -4,6 +4,7 @@ import co.touchlab.kermit.Logger
 import com.mobilebytelabs.remoteconfig.cmpMetadata
 import com.mobilebytelabs.remoteconfig.model.RemoteConfigEnvelope
 import io.ktor.client.HttpClient
+import kotlin.coroutines.cancellation.CancellationException
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
@@ -120,6 +121,20 @@ class RemoteConfigService(
             report("configs_rejected", mapOf("code" to code, "status" to response.status.value))
             ConfigFetchResult.Rejected(code, response.status.value)
         }
+    } catch (e: CancellationException) {
+        // Rethrown, never reported. `catch (e: Exception)` below swallows cancellation, and two
+        // things go wrong when it does.
+        //
+        // The visible one: the ViewModel wraps this in `withTimeoutOrNull`, so a slow network
+        // cancels the call — and a swallowed cancellation turns that timeout into
+        // `configs_fetch_failed error=CancellationException`, telemetry that names the mechanism
+        // instead of the cause and sends you looking for a transport bug that does not exist.
+        //
+        // The one that matters more: swallowing cancellation breaks structured concurrency. A
+        // scope that has been cancelled — a ViewModel cleared, a screen left — expects its
+        // children to unwind, and a child that catches the signal and returns a value instead
+        // keeps running work nobody is waiting for.
+        throw e
     } catch (e: Exception) {
         // Exception CLASS only, never the message: a transport error can echo the URL, and the
         // URL carries the publishable key's package context.
@@ -143,6 +158,20 @@ class RemoteConfigService(
             setBody(body)
         }
         response.status.isSuccess()
+    } catch (e: CancellationException) {
+        // Rethrown, never reported. `catch (e: Exception)` below swallows cancellation, and two
+        // things go wrong when it does.
+        //
+        // The visible one: the ViewModel wraps this in `withTimeoutOrNull`, so a slow network
+        // cancels the call — and a swallowed cancellation turns that timeout into
+        // `configs_fetch_failed error=CancellationException`, telemetry that names the mechanism
+        // instead of the cause and sends you looking for a transport bug that does not exist.
+        //
+        // The one that matters more: swallowing cancellation breaks structured concurrency. A
+        // scope that has been cancelled — a ViewModel cleared, a screen left — expects its
+        // children to unwind, and a child that catches the signal and returns a value instead
+        // keeps running work nobody is waiting for.
+        throw e
     } catch (e: Exception) {
         Logger.e(TAG) { "event report failed: ${e::class.simpleName}" }
         report("events_post_failed", mapOf("error" to (e::class.simpleName ?: "unknown")))

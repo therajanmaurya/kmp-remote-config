@@ -8,7 +8,14 @@ import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlin.test.assertFalse
 import kotlinx.coroutines.test.runTest
+import kotlin.test.assertNull
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -140,5 +147,50 @@ class RemoteConfigServiceTest {
             httpClient = HttpClient(engine),
         )
         assertIs<ConfigFetchResult.Unavailable>(svc.fetchConfigs(screen = null))
+    }
+
+    @Test
+    fun cancellation_unwinds_instead_of_being_reported_as_a_transport_error() = runTest {
+        // Found on a device: a cold start exceeded the ViewModel's 2.5s budget and the log said
+        // `configs_fetch_failed error=CancellationException` — telemetry naming the mechanism
+        // rather than the cause, which sends you hunting a transport bug that does not exist.
+        //
+        // The deeper reason to rethrow: a swallowed cancellation breaks structured concurrency.
+        // A cancelled scope expects its children to unwind; a child that catches the signal and
+        // returns a value instead keeps doing work nobody is waiting for.
+        //
+        // Asserting on COMPLETION, not on a return value. The obvious test —
+        // `withTimeoutOrNull(100) { fetchConfigs(...) }` and expect null — passes either way,
+        // because once the scope is cancelled that helper answers null whether the body
+        // unwound or returned normally. It discriminates nothing.
+        val engine = MockEngine {
+            delay(10_000)
+            respond(
+                content = okBody,
+                status = HttpStatusCode.OK,
+                headers = headersOf(HttpHeaders.ContentType, "application/json"),
+            )
+        }
+        val svc = RemoteConfigService(
+            baseUrl = "https://example.supabase.co/functions/v1",
+            publishableKey = "rck_test_abc",
+            packageName = "com.lumen.photos",
+            platform = "android",
+            appVersion = "4.3.0",
+            httpClient = HttpClient(engine),
+            deviceId = "device-under-test",
+        )
+
+        var ranPastTheCall = false
+        val job = launch {
+            svc.fetchConfigs(screen = null)
+            // Reached only if the call RETURNED. If cancellation unwinds, as it must, this
+            // line never executes.
+            ranPastTheCall = true
+        }
+        advanceTimeBy(50)
+        job.cancelAndJoin()
+
+        assertFalse(ranPastTheCall, "cancellation was swallowed — the call returned a value instead of unwinding")
     }
 }
