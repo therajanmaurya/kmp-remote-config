@@ -1,5 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+      Read by `currentReachability()` to skip the first-fetch wait when the device demonstrably
+      has no network. Normal-protection, granted at install, no runtime prompt — and the SDK
+      contributes it so a consumer does not have to discover the requirement from a
+      SecurityException.
+
+      INTERNET is deliberately NOT declared here: a library should not grant itself network
+      access on behalf of an app that may not want it. Any app using remote config already
+      declares it.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
     <application>
         <!--
           Initialization hook, not a data surface.

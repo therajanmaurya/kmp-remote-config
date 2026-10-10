@@ -145,6 +145,7 @@ public final class com/mobilebytelabs/remoteconfig/ui/RemoteConfigViewModel : an
 	public static final field $stable I
 	public static final field FETCH_TIMEOUT_MS J
 	public static final field FIRST_FETCH_TIMEOUT_MS J
+	public static final field TAG Ljava/lang/String;
 	public fun <init> (Lcom/mobilebytelabs/remoteconfig/network/RemoteConfigService;Lcom/mobilebytelabs/remoteconfig/RemoteConfigEvaluator;Lcom/mobilebytelabs/remoteconfig/local/RemoteConfigLocalStore;Lcom/mobilebytelabs/remoteconfig/local/DeviceIdProvider;)V
 	public final fun activeFor (Ljava/util/Set;)Lcom/mobilebytelabs/remoteconfig/model/RemoteConfigItem;
 	public final fun fetchAndEvaluate (Ljava/lang/String;Ljava/util/Set;)V

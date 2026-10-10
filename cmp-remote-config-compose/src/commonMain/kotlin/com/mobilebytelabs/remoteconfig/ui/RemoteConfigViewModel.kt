@@ -5,7 +5,10 @@ import androidx.lifecycle.viewModelScope
 import com.mobilebytelabs.remoteconfig.RemoteConfigEvaluator
 import com.mobilebytelabs.remoteconfig.local.DeviceIdProvider
 import com.mobilebytelabs.remoteconfig.local.RemoteConfigLocalStore
+import co.touchlab.kermit.Logger
 import com.mobilebytelabs.remoteconfig.model.RemoteConfigItem
+import com.mobilebytelabs.remoteconfig.platform.Reachability
+import com.mobilebytelabs.remoteconfig.platform.currentReachability
 import com.mobilebytelabs.remoteconfig.network.ConfigEvent
 import com.mobilebytelabs.remoteconfig.network.ConfigFetchResult
 import com.mobilebytelabs.remoteconfig.network.RemoteConfigService
@@ -112,7 +115,25 @@ class RemoteConfigViewModel(
             // Waiting longer is close to free: the host renders nothing while loading either
             // way, so the only cost is WHEN the config appears, not whether the UI is blocked.
             val hasFallback = _state.value.delivered.isNotEmpty() || localStore.getCachedConfig() != null
+
+            // Only a DEFINITE "no network" short-circuits. `Unknown` — every platform without a
+            // cheap, reliable check — proceeds exactly as before, so no target regresses into
+            // never fetching.
+            //
+            // This skips the WAIT, not the attempt-in-principle: without it an offline cold
+            // start sits in `isLoading` for the full ten seconds waiting for an answer that
+            // cannot arrive. A reachability check used to decide whether to try AT ALL is how
+            // apps end up refusing to work on networks they would have been fine on, which is
+            // why `Reachable` grants nothing and the fetch remains the real test.
             val budget = if (hasFallback) FETCH_TIMEOUT_MS else FIRST_FETCH_TIMEOUT_MS
+            if (!hasFallback && currentReachability() == Reachability.Unreachable) {
+                // Logged, not silent. "No config appeared and nothing was even attempted" is
+                // otherwise indistinguishable from a broken key or a misconfigured base URL,
+                // and an integrator has no way to tell which from the outside.
+                Logger.i(TAG) { "skipping first fetch: the platform reports no network" }
+                _state.update { it.copy(isLoading = false) }
+                return@launch
+            }
 
             val result = withTimeoutOrNull(budget) { service.fetchConfigs(screen, templates) }
 
@@ -296,6 +317,8 @@ class RemoteConfigViewModel(
     }
 
     private companion object {
+        const val TAG = "RemoteConfigViewModel"
+
         /** Refresh budget: there is already something on screen, so do not hold the state open. */
         const val FETCH_TIMEOUT_MS = 2500L
 

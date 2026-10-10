@@ -167,8 +167,19 @@ fun SampleScreen(config: SampleRemoteConfig) {
                             color = MaterialTheme.colorScheme.primary,
                         )
                     }
-                    RemoteConfigHost(*HomeTemplates)
                 }
+
+                // Composed UNCONDITIONALLY, and deliberately so.
+                //
+                // It used to sit inside the `else` above, gated on the sample's own client
+                // having an active config — a different instance, with its own fetch. Offline
+                // that client fails, `active` is null, and the Host was never composed at all:
+                // the SDK's own fetch never ran, and the screen looked like the SDK had done
+                // nothing when in fact it had never been asked.
+                //
+                // The Host decides for itself whether it has anything to show. Gating it on
+                // another object's state is how a host app accidentally disables it.
+                RemoteConfigHost(*HomeTemplates)
 
                 // GALLERY: every template the control plane delivered, on demand.
                 //
