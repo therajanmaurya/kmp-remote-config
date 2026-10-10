@@ -146,18 +146,17 @@ public final class com/mobilebytelabs/remoteconfig/ui/RemoteConfigViewModel : an
 	public static final field FETCH_TIMEOUT_MS J
 	public fun <init> (Lcom/mobilebytelabs/remoteconfig/network/RemoteConfigService;Lcom/mobilebytelabs/remoteconfig/RemoteConfigEvaluator;Lcom/mobilebytelabs/remoteconfig/local/RemoteConfigLocalStore;Lcom/mobilebytelabs/remoteconfig/local/DeviceIdProvider;)V
 	public final fun activeFor (Ljava/util/Set;)Lcom/mobilebytelabs/remoteconfig/model/RemoteConfigItem;
-	public final fun claimSurface (Ljava/lang/Object;Ljava/lang/String;)Z
-	public final fun ensureFetched (Ljava/util/Set;Ljava/lang/String;)V
-	public static synthetic fun ensureFetched$default (Lcom/mobilebytelabs/remoteconfig/ui/RemoteConfigViewModel;Ljava/util/Set;Ljava/lang/String;ILjava/lang/Object;)V
 	public final fun fetchAndEvaluate (Ljava/lang/String;Ljava/util/Set;)V
 	public static synthetic fun fetchAndEvaluate$default (Lcom/mobilebytelabs/remoteconfig/ui/RemoteConfigViewModel;Ljava/lang/String;Ljava/util/Set;ILjava/lang/Object;)V
 	public final fun getState ()Lkotlinx/coroutines/flow/StateFlow;
 	public final fun getSurfaceOwner ()Lkotlinx/coroutines/flow/StateFlow;
+	public final fun offerCandidate (Ljava/lang/Object;Lcom/mobilebytelabs/remoteconfig/model/RemoteConfigItem;)V
 	public final fun onActionClicked (Ljava/lang/String;)V
 	public final fun onConfigDismissed (Ljava/lang/String;Z)V
 	public static synthetic fun onConfigDismissed$default (Lcom/mobilebytelabs/remoteconfig/ui/RemoteConfigViewModel;Ljava/lang/String;ZILjava/lang/Object;)V
 	public final fun onConfigShown (Ljava/lang/String;)V
-	public final fun releaseSurface (Ljava/lang/Object;)V
+	public final fun registerHost (Ljava/lang/Object;Ljava/util/Set;)V
+	public final fun unregisterHost (Ljava/lang/Object;)V
 }
 
 public final class com/mobilebytelabs/remoteconfig/ui/templates/ComposableSingletons$TemplateBodiesKt {

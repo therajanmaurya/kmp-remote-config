@@ -220,13 +220,15 @@ class ScopedHostTest {
 
     // ── fetch scoping + the single-surface lock ─────────────────────────────────────────────
 
+    private fun settle(v: RemoteConfigViewModel) = runBlocking {
+        withTimeout(10_000) { v.state.first { !it.isLoading } }
+    }
+
     @Test
     fun the_request_is_bounded_to_the_templates_a_host_asked_for() = runBlocking {
-        // The scope bounds the REQUEST, not only the render. A screen hosting two templates has
-        // no use for the other thirteen.
         val seen = mutableListOf<String>()
         val v = vm(item("a", "announcement"), capture = seen)
-        v.ensureFetched(scope(RemoteConfigTemplate.UpdateAvailable, RemoteConfigTemplate.PolicyUpdate))
+        v.registerHost(Any(), scope(RemoteConfigTemplate.UpdateAvailable, RemoteConfigTemplate.PolicyUpdate))
         withTimeout(10_000) { v.state.first { !it.isLoading } }
 
         val q = seen.single()
@@ -237,70 +239,109 @@ class ScopedHostTest {
     fun an_unscoped_host_asks_for_everything() = runBlocking {
         val seen = mutableListOf<String>()
         val v = vm(item("a", "announcement"), capture = seen)
-        v.ensureFetched(emptySet())
+        v.registerHost(Any(), emptySet())
         withTimeout(10_000) { v.state.first { !it.isLoading } }
         assertTrue(!seen.single().contains("templates="), "an unscoped host narrowed the request")
     }
 
     @Test
     fun three_hosts_on_one_screen_make_one_request() = runBlocking {
-        // Keyed per host, this would be three round trips on every screen entry.
         val seen = mutableListOf<String>()
         val v = vm(item("a", "announcement"), capture = seen)
-        v.ensureFetched(scope(RemoteConfigTemplate.Announcement))
-        v.ensureFetched(scope(RemoteConfigTemplate.Announcement))
-        v.ensureFetched(scope(RemoteConfigTemplate.Announcement))
+        repeat(3) { v.registerHost(Any(), scope(RemoteConfigTemplate.Announcement)) }
         withTimeout(10_000) { v.state.first { !it.isLoading } }
         assertEquals(1, seen.size)
     }
 
     @Test
-    fun a_wider_scope_refetches_but_a_narrower_one_does_not() = runBlocking {
+    fun leaving_a_screen_stops_its_templates_counting() = runBlocking {
+        // THE fix. With an accumulating union, by the fifth screen of a session the app asks
+        // for everything again and scoping has quietly stopped doing anything. The request is
+        // the union of what is MOUNTED, so a host that left stops widening it.
         val seen = mutableListOf<String>()
         val v = vm(item("a", "announcement"), capture = seen)
-        v.ensureFetched(scope(RemoteConfigTemplate.Announcement))
+
+        val screenOne = Any()
+        v.registerHost(screenOne, scope(RemoteConfigTemplate.Announcement))
         withTimeout(10_000) { v.state.first { !it.isLoading } }
 
-        // Widening: the set we hold cannot answer it.
-        v.ensureFetched(scope(RemoteConfigTemplate.PaywallUpsell))
+        v.unregisterHost(screenOne)
+        v.registerHost(Any(), scope(RemoteConfigTemplate.PaywallUpsell))
         withTimeout(10_000) { v.state.first { !it.isLoading } }
-        assertEquals(2, seen.size, "widening the scope should re-fetch")
 
-        // Narrowing: what we already hold is a superset, so re-asking would spend a round trip
-        // to receive less.
-        v.ensureFetched(scope(RemoteConfigTemplate.Announcement))
-        assertEquals(2, seen.size, "narrowing the scope should not re-fetch")
+        val second = seen.last()
+        assertTrue(second.contains("templates=paywall_upsell"), "second request was $second")
+        assertTrue(
+            !second.contains("announcement"),
+            "the departed screen's template is still being requested: $second",
+        )
     }
 
     @Test
-    fun only_one_host_may_hold_the_surface() = runBlocking {
+    fun a_narrower_scope_does_not_refetch() = runBlocking {
+        val seen = mutableListOf<String>()
+        val v = vm(item("a", "announcement"), capture = seen)
+        v.registerHost(Any(), emptySet())                    // asks for everything
+        withTimeout(10_000) { v.state.first { !it.isLoading } }
+        v.registerHost(Any(), scope(RemoteConfigTemplate.Announcement))
+        // What we hold is a superset; re-asking would spend a round trip to receive less.
+        assertEquals(1, seen.size)
+    }
+
+    @Test
+    fun the_highest_priority_candidate_wins_the_surface() = runBlocking {
+        // THE other fix. Decided by priority in the ViewModel, not by which host's effect ran
+        // first — otherwise a forced update loses to an onboarding tip because of where someone
+        // put a call in a file.
+        val v = vm(
+            item("tip", "onboarding_tip", display = "banner", priority = 1),
+            item("forced", "update_available", display = "fullscreen", priority = 99),
+        )
+        v.fetchAndSettle()
+
+        val tipHost = Any()
+        val updateHost = Any()
+        // The low-priority host offers FIRST — composition order is deliberately against it.
+        v.offerCandidate(tipHost, v.activeFor(scope(RemoteConfigTemplate.OnboardingTip)))
+        v.offerCandidate(updateHost, v.activeFor(scope(RemoteConfigTemplate.UpdateAvailable)))
+
+        assertEquals(updateHost, v.surfaceOwner.value, "composition order beat priority")
+    }
+
+    @Test
+    fun only_one_host_holds_the_surface_at_a_time() = runBlocking {
         val v = vm(item("a", "announcement"))
         v.fetchAndSettle()
         val first = Any()
         val second = Any()
-        assertTrue(v.claimSurface(first, "a"), "the first claimant should win")
-        assertTrue(!v.claimSurface(second, "a"), "a second host rendered over the first")
+        v.offerCandidate(first, v.activeFor(scope(RemoteConfigTemplate.Announcement)))
+        v.offerCandidate(second, v.activeFor(scope(RemoteConfigTemplate.Announcement)))
+        assertEquals(first, v.surfaceOwner.value, "equal priority should fall back to the first offer")
     }
 
     @Test
-    fun the_surface_passes_on_when_the_holder_releases_it() = runBlocking {
-        // Otherwise a dismissed overlay would lock out every other host for the session.
+    fun the_surface_passes_on_when_the_holder_leaves() = runBlocking {
+        // Otherwise a dismissed or departed host locks out every other one for the session.
         val v = vm(item("a", "announcement"))
         v.fetchAndSettle()
         val first = Any()
         val second = Any()
-        v.claimSurface(first, "a")
-        v.releaseSurface(first)
-        assertTrue(v.claimSurface(second, "a"), "the surface never passed on")
+        v.offerCandidate(first, v.activeFor(scope(RemoteConfigTemplate.Announcement)))
+        v.offerCandidate(second, v.activeFor(scope(RemoteConfigTemplate.Announcement)))
+        v.unregisterHost(first)
+        assertEquals(second, v.surfaceOwner.value, "the surface never passed on")
     }
 
     @Test
-    fun reclaiming_for_a_new_config_is_not_a_second_claimant() = runBlocking {
-        // The same host recomposing for a different config must not lock itself out.
+    fun a_host_with_nothing_to_show_does_not_hold_the_surface() = runBlocking {
+        // Offering null must RELEASE, or a host whose config was dismissed keeps the surface
+        // against one that has something to render.
         val v = vm(item("a", "announcement"))
         v.fetchAndSettle()
-        val only = Any()
-        assertTrue(v.claimSurface(only, "a"))
-        assertTrue(v.claimSurface(only, "b"))
+        val empty = Any()
+        val real = Any()
+        v.offerCandidate(empty, null)
+        v.offerCandidate(real, v.activeFor(scope(RemoteConfigTemplate.Announcement)))
+        assertEquals(real, v.surfaceOwner.value)
     }
 }

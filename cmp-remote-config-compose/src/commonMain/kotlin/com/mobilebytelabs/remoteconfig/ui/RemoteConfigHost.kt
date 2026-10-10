@@ -105,29 +105,32 @@ private fun RemoteConfigHostScoped(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
-    // The host asks for what it needs; the app never calls fetch. Setup is one Koin block and
-    // nothing else is a step to remember — an app that forgot `fetchAndEvaluate()` showed no
-    // configs and raised no error, which is the whole product silently doing nothing.
-    //
-    // Keyed on the scope, and the ViewModel unions and de-duplicates, so three hosts on one
-    // screen make one request rather than three.
-    LaunchedEffect(scope) { viewModel.ensureFetched(scope) }
+    val owner = remember { Any() }
+
+    // Registering is what triggers the fetch — the app never calls it. The ViewModel requests
+    // the union of the scopes CURRENTLY mounted, so three hosts on one screen make one request,
+    // and leaving a screen stops its templates counting rather than widening the ask forever.
+    DisposableEffect(owner, scope) {
+        viewModel.registerHost(owner, scope)
+        onDispose { viewModel.unregisterHost(owner) }
+    }
 
     val config = remember(scope, state.delivered, state.suppressed, state.activeConfig) {
         if (scope.isEmpty()) state.activeConfig else viewModel.activeFor(scope)
-    } ?: return
-
-    // At most one surface at a time. Without this, two hosts on one screen each pick a winner
-    // independently and the user gets two overlays stacked on one another.
-    val owner = remember { Any() }
-    val surfaceOwner by viewModel.surfaceOwner.collectAsStateWithLifecycle()
-    DisposableEffect(owner, config.id) {
-        viewModel.claimSurface(owner, config.id)
-        onDispose { viewModel.releaseSurface(owner) }
     }
-    // Losing the claim is not an error — the other host is showing something, and this one
-    // renders on the next composition after that is dismissed.
-    if (surfaceOwner?.first !== owner) return
+
+    // Offer even when null: a host that stops having a candidate must stop competing, or it
+    // would hold the surface against a host that has something to show.
+    DisposableEffect(owner, config?.id) {
+        viewModel.offerCandidate(owner, config)
+        onDispose { }
+    }
+
+    // At most one surface at a time, and the one offering the highest-priority config wins —
+    // not whichever host happened to compose first. Without this, two hosts on one screen each
+    // pick a winner independently and the user gets two overlays stacked on one another.
+    val surfaceOwner by viewModel.surfaceOwner.collectAsStateWithLifecycle()
+    if (config == null || surfaceOwner !== owner) return
 
     LaunchedEffect(config.id) {
         viewModel.onConfigShown(config.id)

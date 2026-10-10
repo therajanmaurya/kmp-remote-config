@@ -57,14 +57,27 @@ class RemoteConfigViewModel(
     private val _state = MutableStateFlow(RemoteConfigState())
     val state: StateFlow<RemoteConfigState> = _state.asStateFlow()
 
-    /** Templates any host has asked for so far; the request is their union. */
-    private var requested: Set<String> = emptySet()
-    private var unscopedRequested = false
-    private var fetched = false
+    /**
+     * The scope of every host CURRENTLY in composition, keyed by host.
+     *
+     * Mounted, not historical. An accumulating union only ever grows, so by the fifth screen of
+     * a session the app is asking for everything again and the whole point of scoping is gone.
+     * A host removes its entry when it leaves composition.
+     *
+     * LinkedHashMap (what `mutableMapOf` returns) because insertion order is the tie-break when
+     * two candidates have equal priority — "whichever composed first" is at least stable.
+     */
+    private val mounted = mutableMapOf<Any, Set<String>>()
 
-    /** (owner, configId) of the host currently allowed to render. */
-    private val _surfaceOwner = MutableStateFlow<Pair<Any, String>?>(null)
-    val surfaceOwner: StateFlow<Pair<Any, String>?> = _surfaceOwner.asStateFlow()
+    /** The config each mounted host would show, if it were allowed to. */
+    private val candidates = mutableMapOf<Any, RemoteConfigItem?>()
+
+    /** What the last request asked for. `emptySet` means it asked for everything. */
+    private var lastFetchedScope: Set<String>? = null
+
+    /** The host allowed to render right now — the one offering the highest-priority config. */
+    private val _surfaceOwner = MutableStateFlow<Any?>(null)
+    val surfaceOwner: StateFlow<Any?> = _surfaceOwner.asStateFlow()
 
     private val deviceId: String get() = deviceIdProvider.getDeviceId()
 
@@ -140,57 +153,76 @@ class RemoteConfigViewModel(
      * inside `remember`.
      */
     /**
-     * Make sure the configs this call site needs have been asked for. Safe to call from every
-     * host on every composition.
+     * A host entered composition and wants these templates.
      *
-     * ── Why the host fetches and the app does not ───────────────────────────────────────────
      * Setup is one Koin block; nothing else should be a step an integrator has to remember. An
      * app that forgot `fetchAndEvaluate()` showed no configs and produced no error — the whole
      * product silently doing nothing, which is the failure this one exists to remove.
-     *
-     * ── Why a UNION and not a fetch per host ────────────────────────────────────────────────
-     * Several hosts can be composed at once, each naming different templates. One request for
-     * the union of what they asked for beats one request each: the server answers the same set,
-     * and a screen with three hosts does not make three round trips on every entry.
-     *
-     * Widening re-fetches; narrowing does not. A set we already hold is a superset of a
-     * narrower request, so re-asking would spend a round trip to receive less.
      */
-    fun ensureFetched(templateIds: Set<String>, screen: String? = null) {
-        val widened = requested + templateIds
-        // An unscoped host asks for everything, and "everything" can never be widened by a
-        // later scoped host — so once one appears, stop narrowing the request forever.
-        val wantsAll = unscopedRequested || templateIds.isEmpty()
-        if (fetched && widened.size == requested.size && wantsAll == unscopedRequested) return
-
-        requested = widened
-        unscopedRequested = wantsAll
-        fetched = true
-        fetchAndEvaluate(screen, if (wantsAll) emptySet() else widened)
+    fun registerHost(owner: Any, templateIds: Set<String>) {
+        mounted[owner] = templateIds
+        reconcileFetch()
     }
 
     /**
-     * Claim the right to be the one surface on screen.
+     * A host left composition. Its templates stop counting toward the request and its candidate
+     * stops competing for the surface.
      *
-     * Two hosts on one screen each pick a winner independently, so both would render and the
-     * user would get two overlays stacked on one another. Only the first claimant renders; the
-     * rest wait until it is dismissed. "At most one interruption at a time" becomes a property
-     * of the SDK rather than a convention each integrator has to keep.
-     *
-     * Keyed by the config id, not by the host: re-composing the same host for the same config
-     * must not look like a second claimant.
+     * Deliberately does NOT re-fetch. What we hold is now a superset of what is wanted, and
+     * re-asking would spend a round trip to receive less.
      */
-    fun claimSurface(owner: Any, configId: String): Boolean {
-        val current = _surfaceOwner.value
-        if (current == null || current.first === owner) {
-            _surfaceOwner.value = owner to configId
-            return true
-        }
-        return false
+    fun unregisterHost(owner: Any) {
+        mounted.remove(owner)
+        candidates.remove(owner)
+        recomputeSurfaceOwner()
     }
 
-    fun releaseSurface(owner: Any) {
-        if (_surfaceOwner.value?.first === owner) _surfaceOwner.value = null
+    /**
+     * What this host would show. The highest-priority offer across all mounted hosts wins the
+     * single surface.
+     *
+     * Priority rather than composition order: with two hosts on one screen, "whoever composed
+     * first" means a forced update loses to an onboarding tip because of where someone put a
+     * call in a file. Priority is the operator's expressed intent and it should decide.
+     */
+    fun offerCandidate(owner: Any, config: RemoteConfigItem?) {
+        if (candidates[owner]?.id == config?.id && candidates.containsKey(owner)) return
+        candidates[owner] = config
+        recomputeSurfaceOwner()
+    }
+
+    private fun recomputeSurfaceOwner() {
+        // maxByOrNull keeps the FIRST maximum, so equal priorities fall back to insertion
+        // order — stable, which is the most that can be promised when nothing distinguishes
+        // them.
+        _surfaceOwner.value = candidates.entries
+            .filter { it.value != null }
+            .maxByOrNull { it.value!!.priority }
+            ?.key
+    }
+
+    /**
+     * Fetch if what we hold cannot answer what the mounted hosts are asking for.
+     *
+     * The request is the union of the CURRENTLY mounted scopes. An unscoped host wants
+     * everything, and once one is mounted no narrowing is possible while it stays.
+     */
+    private fun reconcileFetch() {
+        val scopes = mounted.values
+        val wantsAll = scopes.any { it.isEmpty() }
+        val union = if (wantsAll) emptySet() else scopes.flatten().toSet()
+
+        val held = lastFetchedScope
+        val covered = when {
+            held == null -> false              // nothing fetched yet
+            held.isEmpty() -> true             // we asked for everything; any subset is covered
+            wantsAll -> false                  // we hold a subset but someone wants everything
+            else -> held.containsAll(union)
+        }
+        if (covered) return
+
+        lastFetchedScope = union
+        fetchAndEvaluate(templates = union)
     }
 
     fun activeFor(templateIds: Set<String>): RemoteConfigItem? {
