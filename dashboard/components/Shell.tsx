@@ -1,4 +1,6 @@
 import Link from "next/link"
+import { SidebarNav, type NavItem } from "@/components/SidebarNav"
+import { ActiveSectionCrumb } from "@/components/ActiveSectionCrumb"
 import { UnpublishedPill } from "@/components/UnpublishedPill"
 import { AppSwitcher, type SwitchableApp } from "@/components/AppSwitcher"
 
@@ -21,64 +23,23 @@ import { AppSwitcher, type SwitchableApp } from "@/components/AppSwitcher"
  * undifferentiated links is a list you re-read every time; three short groups is one you learn.
  */
 
-type NavItem = { href: string; icon: string; label: string; badge?: string | number | null }
-
 export type AppContext = {
   id: string
   name: string
   liveVersion: number | null
   stagedCount: number
-  /** The sub-route the switcher should preserve when moving to another app; null at the root. */
-  section: string | null
 }
 
 function Icon({ name, className = "" }: { name: string; className?: string }) {
   return <span className={`material-symbols-outlined ${className}`} aria-hidden>{name}</span>
 }
 
-function Group({ title, items, active }: { title: string; items: NavItem[]; active: string }) {
-  return (
-    <>
-      <p className="px-3 pb-1 pt-3 text-[11px] font-medium tracking-wide text-secondary first:pt-0">
-        {title}
-      </p>
-      {items.map((item) => {
-        const on = active === item.label
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            aria-current={on ? "page" : undefined}
-            className={`flex items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-              on
-                ? "bg-primary_container text-on_primary_container"
-                : "text-on_surface_variant hover:bg-surface_variant hover:text-on_surface"
-            }`}
-          >
-            <span className="flex items-center gap-2.5">
-              <Icon name={item.icon} className={`text-[19px] ${on ? "text-primary" : ""}`} />
-              {item.label}
-            </span>
-            {item.badge != null && item.badge !== 0 && (
-              <span className="rounded bg-primary/10 px-1.5 font-mono text-[11px] font-semibold text-primary">
-                {item.badge}
-              </span>
-            )}
-          </Link>
-        )
-      })}
-    </>
-  )
-}
-
 export function Shell({
-  active,
   userEmail,
   apps,
   app,
   children,
 }: {
-  active: string
   userEmail: string | null
   apps: SwitchableApp[]
   /** Present on `/apps/{id}/…` routes; absent at org level. */
@@ -124,63 +85,61 @@ export function Shell({
                 {app.liveVersion ? `v${app.liveVersion}` : "unpublished"}
               </span>
             </div>
-            <AppSwitcher apps={apps} activeId={app.id} section={app.section} />
+            <AppSwitcher apps={apps} activeId={app.id} />
           </div>
         )}
 
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-          {app ? (
-            <>
-              <Group
-                title="CONFIGURE"
-                active={active}
-                items={[
-                  { href: `/apps/${app.id}/parameters`, icon: "tune", label: "Parameters" },
-                  { href: `/apps/${app.id}/conditions`, icon: "rule", label: "Conditions" },
-                  { href: `/apps/${app.id}/configs`, icon: "layers", label: "Configs" },
-                  { href: `/apps/${app.id}/templates`, icon: "dashboard_customize", label: "Templates" },
-                ]}
-              />
-              <Group
-                title="VERIFY"
-                active={active}
-                items={[
-                  { href: `/apps/${app.id}/preview`, icon: "preview", label: "Preview" },
-                  { href: `/apps/${app.id}/history`, icon: "history", label: "Activity" },
-                ]}
-              />
-              <Group
-                title="SHIP"
-                active={active}
-                items={[
-                  {
-                    href: `/apps/${app.id}/publish`,
-                    icon: "rocket_launch",
-                    label: "Publish",
-                    badge: app.stagedCount || null,
-                  },
-                  { href: `/apps/${app.id}/keys`, icon: "key", label: "Keys" },
-                ]}
-              />
-              <Group
-                title="WORKSPACE"
-                active={active}
-                items={[
-                  { href: "/dashboard", icon: "grid_view", label: "Dashboard" },
-                  { href: "/community", icon: "deployed_code", label: "Community templates" },
-                ]}
-              />
-            </>
-          ) : (
-            <Group title="WORKSPACE" active={active} items={workspace} />
-          )}
+          <SidebarNav
+            groups={
+              app
+                ? [
+                    {
+                      title: "CONFIGURE",
+                      items: [
+                        { href: `/apps/${app.id}/parameters`, icon: "tune", label: "Parameters" },
+                        { href: `/apps/${app.id}/conditions`, icon: "rule", label: "Conditions" },
+                        { href: `/apps/${app.id}/configs`, icon: "layers", label: "Configs" },
+                        { href: `/apps/${app.id}/templates`, icon: "dashboard_customize", label: "Templates" },
+                      ],
+                    },
+                    {
+                      title: "VERIFY",
+                      items: [
+                        { href: `/apps/${app.id}/preview`, icon: "preview", label: "Preview" },
+                        { href: `/apps/${app.id}/history`, icon: "history", label: "Activity" },
+                      ],
+                    },
+                    {
+                      title: "SHIP",
+                      items: [
+                        {
+                          href: `/apps/${app.id}/publish`,
+                          icon: "rocket_launch",
+                          label: "Publish",
+                          badge: app.stagedCount || null,
+                        },
+                        { href: `/apps/${app.id}/keys`, icon: "key", label: "Keys" },
+                      ],
+                    },
+                    {
+                      title: "WORKSPACE",
+                      items: [
+                        { href: "/dashboard", icon: "grid_view", label: "Dashboard" },
+                        { href: "/community", icon: "deployed_code", label: "Community templates" },
+                      ],
+                    },
+                  ]
+                : [{ title: "WORKSPACE", items: workspace }]
+            }
+          />
         </nav>
 
         {/* Bottom-left, below a divider — separated by PLACEMENT, not only by a heading. These are
             rare and account-wide; they must never sit beside the per-app rows an operator reaches
             for daily. */}
         <div className="border-t border-outline_variant px-3 py-3">
-          <Group title="ADMIN" active={active} items={adminItems} />
+          <SidebarNav groups={[{ title: "ADMIN", items: adminItems }]} />
         </div>
 
         {userEmail && (
@@ -206,7 +165,7 @@ export function Shell({
                   {app.name}
                 </Link>
                 <Icon name="chevron_right" className="flex-shrink-0 text-[16px] text-outline" />
-                <span className="truncate text-secondary">{active}</span>
+                <ActiveSectionCrumb appId={app.id} />
               </>
             ) : (
               <>
@@ -214,7 +173,7 @@ export function Shell({
                   Scope
                 </span>
                 <Icon name="chevron_right" className="flex-shrink-0 text-[16px] text-outline" />
-                <span className="truncate font-semibold">{active}</span>
+                <ActiveSectionCrumb bold />
               </>
             )}
           </div>

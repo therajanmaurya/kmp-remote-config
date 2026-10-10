@@ -30,7 +30,7 @@ export default async function MembersPage() {
   }
 
   return (
-    <Shell active="Members" userEmail={user.email ?? null} apps={fleet}>
+    <Shell userEmail={user.email ?? null} apps={fleet}>
       <div className="p-6">
         <h1 className="font-display text-2xl font-bold tracking-tight">Members</h1>
         <p className="mt-1 max-w-2xl text-sm text-secondary">

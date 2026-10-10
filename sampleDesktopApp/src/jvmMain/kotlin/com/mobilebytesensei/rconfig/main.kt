@@ -20,7 +20,7 @@ fun main() {
     //
     // The env var still wins, so pointing the sample at another app needs no edit.
     val publishableKey = System.getenv("RCONFIG_PUBLISHABLE_KEY")
-        ?: "rck_test_fyjPUqr04YUfMmo9R8ziXg2yPykziQm1"
+        ?: sampleKey
 
     initRemoteConfig(
         publishableKey = publishableKey,

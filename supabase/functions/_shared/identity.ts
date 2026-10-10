@@ -61,11 +61,22 @@ export async function resolveIdentity(
     if (asserted !== data.platform) return { status: 403, code: "platform_mismatch" };
   }
 
-  // Only Android reports a signing certificate. Requiring one everywhere would reject
-  // every legitimate iOS / desktop / web caller, so the check is driven by whether the
-  // KEY registers any digests rather than by the platform header.
+  // Only Android reports a signing certificate, so the digest check is scoped to callers
+  // ASSERTING android — not merely to keys that happen to carry digests.
+  //
+  // It used to key off the key alone, which was correct while every key was pinned to one
+  // platform: only the android key had digests, so only android callers met the check. Once a
+  // single key serves the whole app (migration 021) that same rule rejects every iOS, desktop
+  // and web caller, because none of them send `X-RC-Cert` — the one way one-key-per-app could
+  // break a working integration.
+  //
+  // Scoping to the asserted platform is not a weakening. A caller willing to lie about its
+  // platform could always have asserted a different one and presented that platform's key; the
+  // digest binding only ever protected callers who were honestly android. Play Integrity and
+  // App Attest are what actually bind a caller to a build, and they run in the attestation gate.
   const digests: string[] = data.cert_digests ?? [];
-  if (digests.length > 0) {
+  const assertedPlatform = h.get("X-RC-Platform")?.trim();
+  if (digests.length > 0 && assertedPlatform === "android") {
     const cert = h.get("X-RC-Cert")?.trim();
     if (!cert || !digests.includes(cert)) return { status: 403, code: "cert_mismatch" };
   }

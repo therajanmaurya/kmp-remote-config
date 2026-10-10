@@ -1,19 +1,16 @@
 import SwiftUI
 import sample
 
-/// The publishable key for this host.
+/// The publishable key — read from the SHARED Kotlin constant, not copied.
 ///
-/// Publishable keys are PUBLIC — they ship inside every client bundle, so this belongs in
-/// committed source. The secret credential is the account-level access token (`rcp_…`), which
-/// lives in the vault and never appears here.
+/// This file used to carry its own `rck_test_…` literal because the control plane minted a key
+/// per platform, so iOS genuinely had a different key from Android. Migration 021 ended that: an
+/// app now has one live key and one test key for every target.
 ///
-/// Each host carries its OWN key because `app_key.platform` is a constraint, not a hint:
-/// `_shared/identity.ts` answers a platform mismatch with 403 `platform_mismatch`. The Android
-/// sample's key would not work here even though both hosts are the same product.
-///
-/// This is the `test` key, which is what a debug build wants: `attestation_policy` is `off` on
-/// test keys, so App Attest is not demanded of a simulator build that could never satisfy it.
-private let publishableKey = "rck_test_YPPmyI5wd7AO0y4lcbKXpPytOWCb0zwI"
+/// So the key lives once, in `sample/src/commonMain/.../SampleKey.kt`, and the framework exposes
+/// it here. That is the point worth seeing in a sample — a second copy would still be *correct*
+/// while quietly teaching the thing that was just fixed.
+private let publishableKey = SampleKeyKt.sampleKey
 
 /// Hosts the Kotlin `ComposeUIViewController`.
 ///

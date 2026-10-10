@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { switchHref } from "@/lib/app-section"
+import { usePathname } from "next/navigation"
+import { resolveSection, switchHref } from "@/lib/app-section"
 
 export type SwitchableApp = { id: string; display_name: string; slug: string }
 
@@ -23,13 +24,15 @@ export type SwitchableApp = { id: string; display_name: string; slug: string }
 export function AppSwitcher({
   apps,
   activeId,
-  section,
 }: {
   apps: SwitchableApp[]
   activeId: string
-  /** e.g. "parameters" — the sub-route to preserve; null at the app root. */
-  section: string | null
 }) {
+  // The section to preserve used to arrive as a prop the server layout derived from `headers()`.
+  // This component is already a client component, so reading the pathname here costs nothing and
+  // removes the last reason that layout had to re-render on every navigation.
+  const section = resolveSection(usePathname() ?? "")?.section ?? null
+
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const active = apps.find((a) => a.id === activeId)

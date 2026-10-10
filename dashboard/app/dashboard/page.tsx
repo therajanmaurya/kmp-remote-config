@@ -27,7 +27,7 @@ export default async function DashboardPage() {
   const empty = fleet.length === 0
 
   return (
-    <Shell active="Dashboard" userEmail={user.email ?? null} apps={fleet}>
+    <Shell userEmail={user.email ?? null} apps={fleet}>
       <div className="p-6">
         <div className="rounded-lg bg-primary p-6 text-on_primary">
           <p className="font-mono text-[11px] font-semibold uppercase tracking-wider text-on_primary/70">

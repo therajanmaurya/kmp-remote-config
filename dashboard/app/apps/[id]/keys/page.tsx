@@ -31,7 +31,7 @@ export default async function KeysPage({ params }: { params: { id: string } }) {
       <Hero
         eyebrow="Control plane · Keys"
         title="Publishable keys"
-        subtitle="One key per app and platform. A key identifies the caller; it is not a secret."
+        subtitle="One live key and one test key per app — every platform shares them. A key identifies the caller; it is not a secret."
       />
 
       <div className="mt-2 flex items-center justify-between">
@@ -44,6 +44,10 @@ export default async function KeysPage({ params }: { params: { id: string } }) {
         display here. What protects them is the package and certificate binding below, not
         secrecy. Issuing creates a live key and a test key together; the test key skips
         attestation, because Play Integrity rejects debug and sideloaded builds.
+        {" "}A Kotlin Multiplatform app is one application on several targets, so a key with no
+        platform serves all of them — set it up once in Koin and every target is covered. Keys
+        showing a specific platform are pinned to it, which is only needed for an exception such
+        as a white-label build under its own bundle id.
       </p>
 
       {!keys?.length ? (
@@ -76,7 +80,7 @@ export default async function KeysPage({ params }: { params: { id: string } }) {
                         {badge.label}
                       </span>
                     </td>
-                    <td className="text-on_surface_variant">{k.platform ?? "any"}</td>
+                    <td className="text-on_surface_variant">{k.platform ?? "all"}</td>
                     <td className="font-mono text-xs text-on_surface_variant">{k.bundle_id ?? "—"}</td>
                     <td className="text-on_surface_variant">{k.attestation_policy}</td>
                     <td className="text-right">

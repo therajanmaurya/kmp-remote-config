@@ -5,7 +5,9 @@ import { z } from "zod"
 import { createApiClient } from "./operations.js"
 import {
   addOverride, createCondition, createParameter, explainParameter, listApps,
-  issueKey, listConditions, listParameters, listVersions, onboardApp, previewForDevice,
+  createConfig, issueKey, listConditions, listConfigs, listKeys, listParameters,
+  listVersions, revokeKey,
+  onboardApp, previewForDevice, updateConfig,
   publish, rollback,
 } from "./operations.js"
 
@@ -146,14 +148,14 @@ server.tool(
 
 server.tool(
   "issue_key",
-  "Give an app that ALREADY EXISTS a publishable key for a platform it does not have yet — the " +
-    "op to reach for when an app registered for one platform later ships on another. " +
-    "onboard_app cannot do this: it mints keys only while creating an app and refuses a name it " +
-    "has already seen. Keys are platform-bound and the binding is enforced, so an existing key " +
-    "from another platform answers 403 platform_mismatch rather than working.",
+  "Issue a publishable key for an app that ALREADY EXISTS. Omitting `platform` mints a key " +
+    "that serves every target of the app, which is what a Kotlin Multiplatform consumer wants: " +
+    "one key, set up once in Koin. onboard_app cannot help here — it mints keys only while " +
+    "creating an app and refuses a name it has already seen.",
   {
     app_id: z.string().uuid(),
-    platform: z.string().describe("android | ios | desktop | web | wasm"),
+    platform: z.string().optional()
+      .describe("OMIT for a key that serves every platform — the normal case for a Kotlin Multiplatform app. Pin one only for a genuine exception, e.g. a white-label build under its own bundle id."),
     environment: z.enum(["live", "test"]).optional()
       .describe("omit to mint both, which is what onboard_app does per platform"),
     bundle_id: z.string().optional()
@@ -164,6 +166,75 @@ server.tool(
       .describe("issue a second key alongside an active one. Without this a repeat call is refused and names the existing key, because running the same command twice is likelier than an intended rotation."),
   },
   async (input) => reply(await issueKey(db, ACCESS_TOKEN, input)),
+)
+
+// ── configs ──────────────────────────────────────────────────────────────────
+
+server.tool(
+  "list_configs",
+  "List an app's configs — the template instances that become dialogs, sheets, banners and " +
+    "fullscreen takeovers in the SDK. Includes each one's payload, surface and whether it is live.",
+  { app_id: z.string().uuid() },
+  async ({ app_id }) => reply(await listConfigs(db, ACCESS_TOKEN, app_id)),
+)
+
+server.tool(
+  "create_config",
+  "Instantiate a template for an app. Omit `payload` to adopt the template's default — real " +
+    "copy that could ship as written, not an empty form. The default is COPIED, so editing the " +
+    "template later never rewrites live content. The config is always created DISABLED; enable " +
+    "it with update_config once its copy is right.",
+  {
+    app_id: z.string().uuid(),
+    template_id: z.string().describe("e.g. announcement, update_available, rating_prompt"),
+    display: z.string().optional().describe("defaults to the template's first allowed surface"),
+    payload: z.record(z.string(), z.unknown()).optional()
+      .describe("must satisfy the template's payload_schema; the server rejects one that cannot render"),
+    screens: z.array(z.string()).optional().describe("empty = every screen"),
+    platforms: z.array(z.string()).optional().describe("empty = every platform"),
+    priority: z.number().optional(),
+    is_dismissible: z.boolean().optional()
+      .describe("defaults to false for templates that require acknowledgement, true otherwise"),
+  },
+  async ({ app_id, ...c }) => reply(await createConfig(db, ACCESS_TOKEN, app_id, c)),
+)
+
+server.tool(
+  "list_keys",
+  "List an app's publishable keys, including revoked ones. Keys are public — they ship inside " +
+    "every client binary — so the key itself is returned; this is how you find an id to revoke.",
+  { app_id: z.string().uuid() },
+  async ({ app_id }) => reply(await listKeys(db, ACCESS_TOKEN, app_id)),
+)
+
+server.tool(
+  "revoke_key",
+  "Retire a publishable key. Idempotent. Refuses to revoke the last active key of an " +
+    "environment — that 403s every client in it on the next fetch — unless force is passed; " +
+    "issue the replacement first instead.",
+  {
+    key_id: z.string().uuid(),
+    force: z.boolean().optional()
+      .describe("allow revoking the last active key of its environment"),
+  },
+  async ({ key_id, force }) => reply(await revokeKey(db, ACCESS_TOKEN, key_id, force ?? false)),
+)
+
+server.tool(
+  "update_config",
+  "Edit one config — its copy, its surface, its targeting, or whether it is live. An absent " +
+    "field is left alone, so changing copy cannot clear targeting you did not mention; pass an " +
+    "explicit [] to clear screens or platforms back to 'everywhere'.",
+  {
+    config_id: z.string().uuid(),
+    payload: z.record(z.string(), z.unknown()).optional(),
+    display: z.string().optional(),
+    is_enabled: z.boolean().optional().describe("true makes it live to real users"),
+    priority: z.number().optional(),
+    screens: z.array(z.string()).optional(),
+    platforms: z.array(z.string()).optional(),
+  },
+  async ({ config_id, ...c }) => reply(await updateConfig(db, ACCESS_TOKEN, config_id, c)),
 )
 
 // ── authoring ────────────────────────────────────────────────────────────────

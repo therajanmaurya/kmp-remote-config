@@ -95,3 +95,47 @@ Deno.test("a key with no pinned platform accepts any asserted platform", async (
   h.delete("X-RC-Cert");
   assertEquals("appId" in await resolveIdentity(dbStub(row), h), true);
 });
+
+// ── One key per app (migration 021) ─────────────────────────────────────────────────────────
+// A single platform-agnostic key now serves every target of a Kotlin Multiplatform app. The
+// cert-digest check had to be scoped to callers asserting android, and these pin both halves of
+// that: the one way the change could break a working app, and the protection it must not lose.
+
+Deno.test("a shared key with android digests still serves a non-android caller", async () => {
+  // THE regression risk in one-key-per-app. iOS, desktop and web never send X-RC-Cert, so a
+  // digest check driven by the KEY alone would 403 every one of them the moment the app moved
+  // off per-platform keys — and the operator's only clue would be cert_mismatch on a platform
+  // that has no certificates at all.
+  const shared = { ...KEY_ROW, platform: null };
+  const h = new Headers({
+    "X-RC-Key": "rck_live_x",
+    "X-RC-Package": "com.example.app",
+    "X-RC-Platform": "ios",
+    "X-RC-SDK-Version": "4.0.0",
+  });
+  const r = await resolveIdentity(dbStub(shared), h);
+  assertEquals("appId" in r, true);
+});
+
+Deno.test("a shared key still enforces digests against an android caller", async () => {
+  // The protection the scoping must not give away: an honest android caller presenting the
+  // wrong signing certificate is still refused.
+  const shared = { ...KEY_ROW, platform: null };
+  const r = await resolveIdentity(dbStub(shared), headers({ "X-RC-Cert": "ZZ:ZZ" }));
+  assertEquals(r, { status: 403, code: "cert_mismatch" });
+});
+
+Deno.test("a shared key accepts every platform the app ships on", async () => {
+  // `platform: null` means "any" — the property that let one key replace five.
+  const shared = { ...KEY_ROW, platform: null, cert_digests: [] };
+  for (const p of ["android", "ios", "desktop", "web", "wasm"]) {
+    const h = new Headers({
+      "X-RC-Key": "rck_live_x",
+      "X-RC-Package": "com.example.app",
+      "X-RC-Platform": p,
+      "X-RC-SDK-Version": "4.0.0",
+    });
+    const r = await resolveIdentity(dbStub(shared), h);
+    assertEquals("appId" in r, true, `${p} was refused by an all-platform key`);
+  }
+});

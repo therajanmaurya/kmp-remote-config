@@ -13,6 +13,19 @@ export default {
   darkMode: "class",
   theme: {
     extend: {
+      // A real shimmer: a highlight band that TRAVELS across the placeholder. `animate-pulse`
+      // only fades opacity up and down, which at rest reads as a dim box rather than as work in
+      // progress — on a first load, where the whole screen is placeholder, that looked like the
+      // page had rendered badly rather than like it was loading.
+      keyframes: {
+        shimmer: {
+          "0%": { backgroundPosition: "-200% 0" },
+          "100%": { backgroundPosition: "200% 0" },
+        },
+      },
+      animation: {
+        shimmer: "shimmer 1.6s linear infinite",
+      },
       colors: {
         primary: "#4F46E5",
         on_primary: "#FFFFFF",

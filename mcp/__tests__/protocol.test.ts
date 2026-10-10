@@ -55,9 +55,10 @@ test("the server completes an MCP handshake and lists its tools", async () => {
     const { tools } = await client.listTools()
     const names = tools.map((t) => t.name).sort()
     assert.deepEqual(names, [
-      "add_override", "create_condition", "create_parameter", "explain_parameter",
-      "issue_key", "list_apps", "list_conditions", "list_parameters", "list_versions",
-      "onboard_app", "preview_for_device", "publish", "rollback",
+      "add_override", "create_condition", "create_config", "create_parameter",
+      "explain_parameter", "issue_key", "list_apps", "list_conditions", "list_configs",
+      "list_keys", "list_parameters", "list_versions", "onboard_app", "preview_for_device",
+      "publish", "revoke_key", "rollback", "update_config",
     ])
   } finally {
     await client.close()

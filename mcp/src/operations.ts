@@ -130,7 +130,8 @@ export const onboardApp = (db: ApiClient, token: string, input: OnboardInput) =>
 
 export type IssueKeyInput = {
   app_id: string
-  platform: string
+  /** Omit for a key that serves every platform — the normal case for a KMP app. */
+  platform?: string
   environment?: "live" | "test"
   bundle_id?: string
   cert_digests?: string[]
@@ -151,6 +152,89 @@ export const issueKey = (db: ApiClient, token: string, input: IssueKeyInput) =>
   call(db, token, "issue_key", { ...input }) as Promise<
     Result<{ app_id: string; keys: { platform: string; environment: string; key: string }[] }>
   >
+
+export type KeyRow = {
+  id: string
+  key: string
+  label: string | null
+  environment: string
+  platform: string | null
+  bundle_id: string | null
+  cert_digests: string[]
+  attestation_policy: string
+  revoked_at: string | null
+  created_at: string
+}
+
+export const listKeys = (db: ApiClient, token: string, appId: string) =>
+  call(db, token, "list_keys", { app_id: appId }) as Promise<Result<KeyRow[]>>
+
+/**
+ * Retire one key. Idempotent — re-revoking reports `already_revoked` rather than failing, so a
+ * cleanup that re-runs does not trip on the rows it already handled.
+ *
+ * Revoking the last active key of an environment is refused unless `force`, because it 403s
+ * every client in that environment on its next fetch.
+ */
+export const revokeKey = (db: ApiClient, token: string, keyId: string, force = false) =>
+  call(db, token, "revoke_key", { key_id: keyId, ...(force ? { force: true } : {}) }) as Promise<
+    Result<{ id: string; revoked?: boolean; already_revoked?: boolean }>
+  >
+
+export type ConfigRow = {
+  id: string
+  template_id: string
+  display: string
+  is_enabled: boolean
+  priority: number
+  screens: string[]
+  platforms: string[]
+  payload: Record<string, unknown>
+}
+
+export const listConfigs = (db: ApiClient, token: string, appId: string) =>
+  call(db, token, "list_configs", { app_id: appId }) as Promise<Result<ConfigRow[]>>
+
+/**
+ * Instantiate a template for an app.
+ *
+ * Omit `payload` to adopt the template's `default_payload` — real copy that could ship as
+ * written, rather than the empty form every config used to start from. The default is COPIED
+ * into the config, so editing the template later never rewrites live content under an app.
+ *
+ * The created config is always DISABLED. There is deliberately no flag to override that: a
+ * config created live is a message shown to real users by a call meant only to author one.
+ */
+export const createConfig = (
+  db: ApiClient, token: string, appId: string,
+  c: {
+    template_id: string
+    display?: string
+    payload?: Record<string, unknown>
+    screens?: string[]
+    platforms?: string[]
+    priority?: number
+    is_dismissible?: boolean
+  },
+) => call(db, token, "create_config", { app_id: appId, ...c }) as Promise<
+  Result<{ id: string; is_enabled: boolean }>
+>
+
+/**
+ * Edit one config. An absent key leaves its field alone, so updating copy cannot silently clear
+ * targeting the caller never mentioned; an explicit `[]` still clears an array back to "all".
+ */
+export const updateConfig = (
+  db: ApiClient, token: string, configId: string,
+  c: {
+    payload?: Record<string, unknown>
+    display?: string
+    is_enabled?: boolean
+    priority?: number
+    screens?: string[]
+    platforms?: string[]
+  },
+) => call(db, token, "update_config", { config_id: configId, ...c }) as Promise<Result<{ id: string }>>
 
 export const createParameter = (
   db: ApiClient, token: string, appId: string,

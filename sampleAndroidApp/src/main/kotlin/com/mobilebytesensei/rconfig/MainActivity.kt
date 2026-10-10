@@ -45,6 +45,8 @@ class MainActivity : ComponentActivity() {
  * The SECRET half of this product is the `rcp_` access token, which lives in the vault and
  * never appears in source. The two are opposites; do not confuse them.
  */
+// The key now lives in commonMain (`SampleKey.kt`) and is shared by every host. Keeping a
+// per-host copy was only ever necessary because the control plane minted a key per platform.
 internal object BuildConfigKey {
-    const val VALUE: String = "rck_test_Oa8Z5tsgTKOL8K8WpYCJ4W0BCaarHrKD"
+    const val VALUE: String = sampleKey
 }

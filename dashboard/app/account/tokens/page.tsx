@@ -27,7 +27,7 @@ export default async function AccessTokensPage() {
   ])
 
   return (
-    <Shell active="Access Tokens" userEmail={user.email ?? null} apps={apps}>
+    <Shell userEmail={user.email ?? null} apps={apps}>
       <AccessTokens tokens={(tokens ?? []) as TokenRow[]} apps={apps} />
     </Shell>
   )

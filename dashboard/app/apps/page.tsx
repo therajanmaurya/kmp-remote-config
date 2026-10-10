@@ -17,7 +17,7 @@ export default async function AppsPage() {
   const fleet = await loadFleet(supabase)
 
   return (
-    <Shell active="Apps" userEmail={user.email ?? null} apps={fleet}>
+    <Shell userEmail={user.email ?? null} apps={fleet}>
       <div className="p-6">
         <div className="flex items-center justify-between gap-4">
           <div>

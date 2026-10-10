@@ -66,6 +66,32 @@ export const onboardApp = (db, token, input) => call(db, token, "onboard_app", {
  * Same envelope as onboarding, so a caller that already renders onboarding's keys renders these.
  */
 export const issueKey = (db, token, input) => call(db, token, "issue_key", { ...input });
+export const listKeys = (db, token, appId) => call(db, token, "list_keys", { app_id: appId });
+/**
+ * Retire one key. Idempotent — re-revoking reports `already_revoked` rather than failing, so a
+ * cleanup that re-runs does not trip on the rows it already handled.
+ *
+ * Revoking the last active key of an environment is refused unless `force`, because it 403s
+ * every client in that environment on its next fetch.
+ */
+export const revokeKey = (db, token, keyId, force = false) => call(db, token, "revoke_key", { key_id: keyId, ...(force ? { force: true } : {}) });
+export const listConfigs = (db, token, appId) => call(db, token, "list_configs", { app_id: appId });
+/**
+ * Instantiate a template for an app.
+ *
+ * Omit `payload` to adopt the template's `default_payload` — real copy that could ship as
+ * written, rather than the empty form every config used to start from. The default is COPIED
+ * into the config, so editing the template later never rewrites live content under an app.
+ *
+ * The created config is always DISABLED. There is deliberately no flag to override that: a
+ * config created live is a message shown to real users by a call meant only to author one.
+ */
+export const createConfig = (db, token, appId, c) => call(db, token, "create_config", { app_id: appId, ...c });
+/**
+ * Edit one config. An absent key leaves its field alone, so updating copy cannot silently clear
+ * targeting the caller never mentioned; an explicit `[]` still clears an array back to "all".
+ */
+export const updateConfig = (db, token, configId, c) => call(db, token, "update_config", { config_id: configId, ...c });
 export const createParameter = (db, token, appId, p) => call(db, token, "create_parameter", { app_id: appId, ...p });
 export const createCondition = (db, token, appId, c) => call(db, token, "create_condition", { app_id: appId, ...c });
 /**
