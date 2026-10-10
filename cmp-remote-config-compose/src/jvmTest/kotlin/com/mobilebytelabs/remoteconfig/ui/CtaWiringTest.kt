@@ -4,7 +4,12 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runComposeUiTest
+import com.mobilebytelabs.kmptoolkit.appreview.AppReview
+import com.mobilebytelabs.kmptoolkit.appreview.AppReviewCapabilities
+import com.mobilebytelabs.kmptoolkit.appreview.testing.FakeAppReviewManager
 import com.mobilebytelabs.kmptoolkit.openurl.testing.FakeUrlLauncher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import com.mobilebytelabs.remoteconfig.dispatch.ActionDispatcher
 import com.mobilebytelabs.remoteconfig.dispatch.ActionHandler
 import com.mobilebytelabs.remoteconfig.model.ActionType
@@ -199,5 +204,45 @@ class CtaWiringTest {
 
         assertEquals(ActionType.URL to "https://example.test/terms", seen)
         assertTrue(launcher.opened.isEmpty(), "the consumer handler won, so the SDK must not also open")
+    }
+
+    @Test
+    fun the_rating_prompt_asks_for_a_review_rather_than_opening_the_store() {
+        // The dispatcher tests prove REVIEW requests a sheet; they say nothing about which
+        // action the TEMPLATE sends. Reverting `rating_prompt` to STORE passed all of them —
+        // the regression would have shipped with a green suite, which is why this test renders
+        // the real body and clicks the real button.
+        val review = FakeAppReviewManager(
+            capabilities = AppReviewCapabilities(nativeInAppReview = true, storeListing = true),
+        )
+        AppReview.configure(review)
+        val launcher = FakeUrlLauncher()
+        ActionDispatcher.setLauncherForTest(launcher)
+        ActionDispatcher.setScopeForTest(CoroutineScope(UnconfinedTestDispatcher()))
+
+        runComposeUiTest {
+            setContent {
+                RemoteConfigSurface(
+                    item(
+                        "rating_prompt",
+                        """{
+                          "title": "Enjoying the app?",
+                          "body": "A quick rating helps other people find it.",
+                          "store_url": "https://play.google.com/store/apps/details?id=x"
+                        }""",
+                    ),
+                )
+            }
+            onNodeWithText("Rate").performClick()
+        }
+
+        assertEquals(1, review.requestCount, "the Rate button did not ask for a native review")
+        assertTrue(
+            launcher.opened.isEmpty(),
+            "the store listing was opened — the user is thrown out of the app by the one " +
+                "action meant to keep them in it",
+        )
+        AppReview.reset()
+        ActionDispatcher.resetScope()
     }
 }

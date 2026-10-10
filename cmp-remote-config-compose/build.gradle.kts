@@ -136,6 +136,8 @@ kotlin {
             // NWPathMonitor wrapper — to answer one question this library already answers for
             // every target, with captive-portal detection and validation on top.
             implementation(libs.cmp.network.monitor)
+            // Native in-app review for the `rating_prompt` template.
+            implementation(libs.cmp.app.review)
 
             // Compose
             implementation(compose.material3)

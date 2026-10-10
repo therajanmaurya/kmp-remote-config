@@ -1,6 +1,11 @@
 package com.mobilebytelabs.remoteconfig.dispatch
 
 import co.touchlab.kermit.Logger
+import com.mobilebytelabs.kmptoolkit.appreview.AppReview
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import com.mobilebytelabs.kmptoolkit.openurl.AppHint
 import com.mobilebytelabs.kmptoolkit.openurl.OpenUrlResult
 import com.mobilebytelabs.kmptoolkit.openurl.UrlLauncher
@@ -48,6 +53,22 @@ internal object ActionDispatcher {
     internal fun setLauncherForTest(value: UrlLauncher) { launcher = value }
     internal fun resetLauncher() { launcher = PlatformUrlLauncher }
 
+    /**
+     * Where a suspending built-in runs.
+     *
+     * `AppReview.requestReview()` suspends — the platform sheet is asynchronous — but `dispatch`
+     * is called from a tap handler and cannot be. Rather than make every caller supply a scope
+     * for the one action that needs it, the dispatcher owns a Main-dispatched scope: the review
+     * sheet is UI and has to be requested from the main thread anyway.
+     *
+     * A SupervisorJob so a failed review request cannot cancel the scope and silently disable
+     * every later one.
+     */
+    private var scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
+    internal fun setScopeForTest(value: CoroutineScope) { scope = value }
+    internal fun resetScope() { scope = CoroutineScope(SupervisorJob() + Dispatchers.Main) }
+
     fun register(map: Map<ActionType, ActionHandler>) {
         handlers.clear()
         handlers.putAll(map)
@@ -63,6 +84,26 @@ internal object ActionDispatcher {
         when (type) {
             // `store_url` is a full URL in every schema that carries one, so STORE is a URL open
             // under a different name rather than a separate platform capability.
+            ActionType.REVIEW -> {
+                // The native sheet, not a store link. `requestReview` is rate-limited and
+                // silently ignored by both platforms when it has been shown too recently —
+                // which is correct behaviour, not a failure, so nothing here treats a
+                // no-op result as an error.
+                //
+                // `value` carries the template's `store_url` and is used only if the platform
+                // has no native sheet: desktop and web have no review API, and sending those
+                // users to the listing is better than doing nothing at all.
+                scope.launch {
+                    val result = runCatching { AppReview.requestReview() }
+                        .onFailure { log.w { "in-app review failed: ${it::class.simpleName}" } }
+                    if (result.isFailure || !AppReview.capabilities.nativeInAppReview) {
+                        val fallback = value?.trim()
+                        if (!fallback.isNullOrEmpty()) launcher.open(fallback)
+                        else AppReview.openStoreListing()
+                    }
+                }
+            }
+
             ActionType.URL, ActionType.DEEPLINK, ActionType.STORE -> {
                 val target = value?.trim()
                 if (target.isNullOrEmpty()) {

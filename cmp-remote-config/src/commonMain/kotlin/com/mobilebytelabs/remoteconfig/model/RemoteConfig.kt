@@ -82,6 +82,18 @@ value class ActionType(val value: String) {
         val URL = ActionType("url")
         val DEEPLINK = ActionType("deeplink")
         val STORE = ActionType("store")
+
+        /**
+         * Ask for a store review — natively, in place, not by opening the store.
+         *
+         * Distinct from [STORE] because they are different acts. STORE sends the user away to a
+         * listing; REVIEW shows the platform's own review sheet over the app, which is the whole
+         * reason the native APIs exist and why they convert where a store link does not.
+         *
+         * Falls back to the listing when the platform has no native sheet, so a caller never has
+         * to ask which one it is going to get.
+         */
+        val REVIEW = ActionType("review")
         val DISMISS = ActionType("dismiss")
         val PREMIUM = ActionType("premium")
 

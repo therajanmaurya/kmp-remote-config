@@ -381,6 +381,7 @@ public final class com/mobilebytelabs/remoteconfig/model/ActionType$Companion {
 	public final fun getDISMISS-cjiFGYA ()Ljava/lang/String;
 	public final fun getNONE-cjiFGYA ()Ljava/lang/String;
 	public final fun getPREMIUM-cjiFGYA ()Ljava/lang/String;
+	public final fun getREVIEW-cjiFGYA ()Ljava/lang/String;
 	public final fun getSTORE-cjiFGYA ()Ljava/lang/String;
 	public final fun getSUBMIT-cjiFGYA ()Ljava/lang/String;
 	public final fun getURL-cjiFGYA ()Ljava/lang/String;

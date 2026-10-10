@@ -412,7 +412,13 @@ internal fun RatingPromptBody(item: RemoteConfigItem, p: TemplatePayload, a: Tem
         TemplateTitle(p.string("title", "Enjoying the app?"), center = true)
         p.string("body")?.let { TemplateBodyText(it, center = true) }
         VSpace(4)
-        PrimaryAction("Rate") { a.onPrimary(ActionType.STORE.value, p.string("store_url")) }
+        // REVIEW, not STORE. The two look similar and are not: STORE sends the user to a
+        // listing, REVIEW shows the platform's own sheet over the app — which is the entire
+        // reason the native APIs exist, and why a store link converts so much worse.
+        //
+        // `store_url` still travels as the value: it is the fallback for desktop and web,
+        // which have no review API at all.
+        PrimaryAction("Rate") { a.onPrimary(ActionType.REVIEW.value, p.string("store_url")) }
         if (item.isDismissible) SecondaryAction("Not now", a.onSecondary)
     }
 }

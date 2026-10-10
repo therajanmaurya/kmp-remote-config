@@ -197,6 +197,9 @@ coil-network-ktor = { module = "io.coil-kt.coil3:coil-network-ktor3", version = 
 # 3.2.1 while the rest of the toolkit moved on, which is how one artifact silently drifts
 # a release train behind the others it shares types with.
 cmp-network-monitor = { module = "io.github.mobilebytelabs:cmp-network-monitor", version.ref = "cmpObserve" }
+# Native in-app review (StoreKit / Play Review), with an openStoreListing fallback. The
+# `rating_prompt` template used to be a store URL, which is a worse version of this.
+cmp-app-review = { module = "io.github.mobilebytelabs:cmp-app-review", version.ref = "cmpObserve" }
 cmp-network-monitor-compose = { module = "io.github.mobilebytelabs:cmp-network-monitor-compose", version = "3.2.1" }
 
 roborazzi-compose-desktop = { module = "io.github.takahirom.roborazzi:roborazzi-compose-desktop", version.ref = "roborazzi" }
