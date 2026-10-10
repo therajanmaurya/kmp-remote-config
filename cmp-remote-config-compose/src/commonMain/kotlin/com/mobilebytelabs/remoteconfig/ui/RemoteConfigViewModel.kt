@@ -7,6 +7,10 @@ import com.mobilebytelabs.remoteconfig.local.DeviceIdProvider
 import com.mobilebytelabs.remoteconfig.local.RemoteConfigLocalStore
 import co.touchlab.kermit.Logger
 import com.mobilebytelabs.remoteconfig.model.RemoteConfigItem
+import com.mobilebytelabs.remoteconfig.model.SdkSettings
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import io.github.mobilebytelabs.kmptoolkit.networkmonitor.NetworkMonitorProvider
 import com.mobilebytelabs.remoteconfig.network.ConfigEvent
 import com.mobilebytelabs.remoteconfig.network.ConfigFetchResult
@@ -77,6 +81,16 @@ class RemoteConfigViewModel(
     /** What the last request asked for. `emptySet` means it asked for everything. */
     private var lastFetchedScope: Set<String>? = null
 
+    /**
+     * The server's SDK settings, as of the last successful fetch.
+     *
+     * Defaults until one lands, so the interval and the kill switch behave as the SDK's own
+     * defaults rather than as "off" against a plane that has not answered yet.
+     */
+    private var settings: SdkSettings = SdkSettings()
+
+    private var refreshJob: Job? = null
+
     /** The host allowed to render right now — the one offering the highest-priority config. */
     private val _surfaceOwner = MutableStateFlow<Any?>(null)
     val surfaceOwner: StateFlow<Any?> = _surfaceOwner.asStateFlow()
@@ -144,13 +158,25 @@ class RemoteConfigViewModel(
                 is ConfigFetchResult.Success -> {
                     val active = evaluator.evaluate(result.envelope.configs)
                     active?.let { localStore.cacheConfig(it) }
+                    settings = result.envelope.settings
+
+                    // The kill switch. `enabled = false` must stop what is already on screen,
+                    // not merely stop the next fetch — a switch that leaves the current surface
+                    // up until the user relaunches is half a switch, and the missing half is
+                    // the one an operator reaches for during an incident.
+                    val disabled = !result.envelope.settings.enabled
                     _state.update {
                         it.copy(
-                            activeConfig = active,
-                            delivered = result.envelope.configs,
+                            activeConfig = if (disabled) null else active,
+                            delivered = if (disabled) emptyList() else result.envelope.configs,
                             isLoading = false,
                         )
                     }
+                    if (disabled) {
+                        candidates.clear()
+                        recomputeSurfaceOwner()
+                    }
+                    restartRefreshLoop()
                 }
 
                 is ConfigFetchResult.Rejected -> {
@@ -201,8 +227,11 @@ class RemoteConfigViewModel(
      * product silently doing nothing, which is the failure this one exists to remove.
      */
     fun registerHost(owner: Any, templateIds: Set<String>) {
+        val wasEmpty = mounted.isEmpty()
         mounted[owner] = templateIds
         reconcileFetch()
+        // The first host on screen starts the clock; later ones join the loop already running.
+        if (wasEmpty) restartRefreshLoop()
     }
 
     /**
@@ -216,6 +245,8 @@ class RemoteConfigViewModel(
         mounted.remove(owner)
         candidates.remove(owner)
         recomputeSurfaceOwner()
+        // Nothing on screen: stop ticking rather than refresh for an audience of nobody.
+        if (mounted.isEmpty()) refreshJob?.cancel()
     }
 
     /**
@@ -230,6 +261,37 @@ class RemoteConfigViewModel(
         if (candidates[owner]?.id == config?.id && candidates.containsKey(owner)) return
         candidates[owner] = config
         recomputeSurfaceOwner()
+    }
+
+    /**
+     * Re-fetch on the interval the server asked for, while a host is on screen.
+     *
+     * `fetch_interval_seconds` was parsed and `RemoteConfigClient.shouldFetch` implemented the
+     * arithmetic, and nothing called either outside tests — so an operator could set a fifteen
+     * minute refresh, publish, and watch a running app never notice. The kill switch had the
+     * same hole: `enabled = false` only took effect on a cold start.
+     *
+     * Tied to MOUNTED hosts rather than to a lifecycle callback: host presence is the one
+     * signal available on every target, and it means the loop cannot tick for an app that is
+     * displaying nothing. It does NOT pause when the app is backgrounded with a host still
+     * composed — a real limit, and part of why the floor below is a minute rather than a second.
+     */
+    private fun restartRefreshLoop() {
+        refreshJob?.cancel()
+        if (mounted.isEmpty() || !settings.enabled) return
+
+        // The server's floor, not ours to undercut: MIN_FETCH_INTERVAL_SECONDS exists so a
+        // misconfigured app cannot hammer the control plane.
+        val seconds = maxOf(settings.fetchIntervalSeconds, SdkSettings.MIN_FETCH_INTERVAL_SECONDS)
+        refreshJob = viewModelScope.launch {
+            while (isActive) {
+                delay(seconds * 1000L)
+                if (mounted.isEmpty()) break
+                // The union currently on screen, not the scope of the original fetch: the user
+                // may have navigated since, and refreshing what they left is wasted payload.
+                fetchAndEvaluate(templates = lastFetchedScope ?: emptySet())
+            }
+        }
     }
 
     private fun recomputeSurfaceOwner() {

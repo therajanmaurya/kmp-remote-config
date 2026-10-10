@@ -56,8 +56,29 @@ class ScopedHostTest {
     @BeforeTest
     fun setUp() = Dispatchers.setMain(Dispatchers.Default)
 
+    /**
+     * Every host registered during a test, so its refresh loop can be stopped.
+     *
+     * A registered host starts a refresh loop on `viewModelScope`, i.e. on Main. Leave one
+     * running and it wakes a minute later onto a dispatcher `resetMain()` has already torn
+     * down, and the resulting uncaught exception is reported against whichever UNRELATED test
+     * happens to be starting then — which is how this first surfaced, as a Roborazzi golden
+     * failing for no reason of its own.
+     */
+    private val registered = mutableListOf<Pair<RemoteConfigViewModel, Any>>()
+
+    private fun RemoteConfigViewModel.reg(scope: Set<String>, owner: Any = Any()): Any {
+        registerHost(owner, scope)
+        registered += this to owner
+        return owner
+    }
+
     @AfterTest
-    fun tearDown() = Dispatchers.resetMain()
+    fun tearDown() {
+        registered.forEach { (vm, owner) -> vm.unregisterHost(owner) }
+        registered.clear()
+        Dispatchers.resetMain()
+    }
 
     /**
      * Shaped against `contract/configs-response.json`.
@@ -229,7 +250,7 @@ class ScopedHostTest {
     fun the_request_is_bounded_to_the_templates_a_host_asked_for() = runBlocking {
         val seen = mutableListOf<String>()
         val v = vm(item("a", "announcement"), capture = seen)
-        v.registerHost(Any(), scope(RemoteConfigTemplate.UpdateAvailable, RemoteConfigTemplate.PolicyUpdate))
+        v.reg(scope(RemoteConfigTemplate.UpdateAvailable, RemoteConfigTemplate.PolicyUpdate))
         withTimeout(10_000) { v.state.first { !it.isLoading } }
 
         val q = seen.single()
@@ -240,7 +261,7 @@ class ScopedHostTest {
     fun an_unscoped_host_asks_for_everything() = runBlocking {
         val seen = mutableListOf<String>()
         val v = vm(item("a", "announcement"), capture = seen)
-        v.registerHost(Any(), emptySet())
+        v.reg(emptySet())
         withTimeout(10_000) { v.state.first { !it.isLoading } }
         assertTrue(!seen.single().contains("templates="), "an unscoped host narrowed the request")
     }
@@ -249,7 +270,7 @@ class ScopedHostTest {
     fun three_hosts_on_one_screen_make_one_request() = runBlocking {
         val seen = mutableListOf<String>()
         val v = vm(item("a", "announcement"), capture = seen)
-        repeat(3) { v.registerHost(Any(), scope(RemoteConfigTemplate.Announcement)) }
+        repeat(3) { v.reg(scope(RemoteConfigTemplate.Announcement)) }
         withTimeout(10_000) { v.state.first { !it.isLoading } }
         assertEquals(1, seen.size)
     }
@@ -263,11 +284,11 @@ class ScopedHostTest {
         val v = vm(item("a", "announcement"), capture = seen)
 
         val screenOne = Any()
-        v.registerHost(screenOne, scope(RemoteConfigTemplate.Announcement))
+        v.reg(scope(RemoteConfigTemplate.Announcement), screenOne)
         withTimeout(10_000) { v.state.first { !it.isLoading } }
 
         v.unregisterHost(screenOne)
-        v.registerHost(Any(), scope(RemoteConfigTemplate.PaywallUpsell))
+        v.reg(scope(RemoteConfigTemplate.PaywallUpsell))
         withTimeout(10_000) { v.state.first { !it.isLoading } }
 
         val second = seen.last()
@@ -282,9 +303,9 @@ class ScopedHostTest {
     fun a_narrower_scope_does_not_refetch() = runBlocking {
         val seen = mutableListOf<String>()
         val v = vm(item("a", "announcement"), capture = seen)
-        v.registerHost(Any(), emptySet())                    // asks for everything
+        v.reg(emptySet())                    // asks for everything
         withTimeout(10_000) { v.state.first { !it.isLoading } }
-        v.registerHost(Any(), scope(RemoteConfigTemplate.Announcement))
+        v.reg(scope(RemoteConfigTemplate.Announcement))
         // What we hold is a superset; re-asking would spend a round trip to receive less.
         assertEquals(1, seen.size)
     }
@@ -400,5 +421,78 @@ class ScopedHostTest {
         // a slow refresh must never blank a config the user is looking at.
         assertEquals("a", v.state.value.activeConfig?.id)
         assertEquals(null, v.state.value.rejection, "a timeout is not a rejection")
+    }
+
+    // ── foreground refresh + the kill switch ───────────────────────────────────────────────
+
+    /** A service whose envelope carries explicit SDK settings. */
+    private fun vmWithSettings(settingsJson: String, capture: MutableList<String>? = null): RemoteConfigViewModel {
+        val engine = MockEngine { request ->
+            capture?.add(request.url.toString())
+            respond(
+                content = """{"schema_version":1,"configs":[${item("a", "announcement")}],"settings":$settingsJson}""",
+                status = HttpStatusCode.OK,
+                headers = headersOf(HttpHeaders.ContentType, "application/json"),
+            )
+        }
+        val service = RemoteConfigService(
+            baseUrl = "https://example.supabase.co/functions/v1",
+            publishableKey = "rck_test_abc",
+            packageName = "com.example.app",
+            platform = "android",
+            appVersion = "1.0.0",
+            httpClient = HttpClient(engine),
+            deviceId = "device-under-test",
+        )
+        val store = RemoteConfigLocalStore(MapSettings())
+        return RemoteConfigViewModel(
+            service = service,
+            evaluator = RemoteConfigEvaluator(store),
+            localStore = store,
+            deviceIdProvider = DeviceIdProvider(MapSettings()),
+        )
+    }
+
+    @Test
+    fun the_kill_switch_clears_what_is_already_on_screen() = runBlocking {
+        // `enabled = false` is what an operator reaches for during an incident. Stopping only
+        // the NEXT fetch would leave the surface up until the user relaunched — half a switch,
+        // and the missing half is the half that matters.
+        val v = vmWithSettings("""{"enabled":false,"fetch_interval_seconds":60}""")
+        v.reg(emptySet())
+        withTimeout(10_000) { v.state.first { !it.isLoading } }
+
+        assertNull(v.state.value.activeConfig, "a disabled app still had a config on screen")
+        assertTrue(v.state.value.delivered.isEmpty(), "a disabled app still held delivered configs")
+        assertNull(v.activeFor(emptySet()), "a scoped host could still find something to show")
+    }
+
+    @Test
+    fun an_enabled_app_keeps_its_configs() = runBlocking {
+        // The control. Without it the test above passes just as well against a bug that clears
+        // the configs unconditionally.
+        val v = vmWithSettings("""{"enabled":true,"fetch_interval_seconds":60}""")
+        v.reg(emptySet())
+        withTimeout(10_000) { v.state.first { !it.isLoading } }
+
+        assertEquals("a", v.state.value.activeConfig?.id)
+        assertEquals(1, v.state.value.delivered.size)
+    }
+
+    @Test
+    fun nothing_on_screen_means_nothing_is_refreshed() = runBlocking {
+        // The loop is tied to mounted hosts, so an app displaying no surface does not poll the
+        // control plane on a timer for an audience of nobody.
+        val seen = mutableListOf<String>()
+        val v = vmWithSettings("""{"enabled":true,"fetch_interval_seconds":60}""", capture = seen)
+        val host = Any()
+        v.reg(emptySet(), host)
+        withTimeout(10_000) { v.state.first { !it.isLoading } }
+        assertEquals(1, seen.size)
+
+        v.unregisterHost(host)
+        // The interval floor is 60s, so no refresh is due yet either way; what this pins is
+        // that unregistering does not leave a job behind that would fire later.
+        assertEquals(1, seen.size)
     }
 }
