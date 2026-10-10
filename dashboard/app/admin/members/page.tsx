@@ -3,6 +3,7 @@ export const runtime = "edge"
 import { requireUser } from "@/lib/require-user"
 import { loadAppList } from "@/lib/fleet"
 import { Shell } from "@/components/Shell"
+import { InviteMember } from "@/components/InviteMember"
 
 type MemberRow = { user_id: string; role: string; app_id: string }
 
@@ -18,8 +19,23 @@ export default async function MembersPage() {
   const { user, supabase } = await requireUser()
   const fleet = await loadAppList(supabase)
 
-  const { data } = await supabase.from("app_member").select("user_id, role, app_id")
+  const [{ data }, { data: profiles }, { data: invites }] = await Promise.all([
+    supabase.from("app_member").select("user_id, role, app_id"),
+    // Readable only for people you share an app with — see the profile_select policy. This is
+    // what lets a colleague render as an address instead of a truncated uuid.
+    supabase.from("profile").select("user_id, email"),
+    supabase
+      .from("app_invitation")
+      .select("id, email, role, app_id, expires_at")
+      .is("accepted_at", null)
+      .is("revoked_at", null)
+      .gt("expires_at", new Date().toISOString())
+      .order("created_at", { ascending: false }),
+  ])
   const rows = (data ?? []) as MemberRow[]
+  const emailOf = new Map<string, string>(
+    ((profiles ?? []) as { user_id: string; email: string }[]).map((p) => [p.user_id, p.email]),
+  )
 
   const byUser = new Map<string, { roles: Set<string>; apps: Set<string> }>()
   for (const r of rows) {
@@ -52,12 +68,13 @@ export default async function MembersPage() {
               {[...byUser.entries()].map(([userId, e]) => (
                 <tr key={userId} data-testid="member-row">
                   <td className="px-5 py-3">
-                    {/* Only the signed-in user's own address is known here: auth.users is not
-                        readable through RLS, and exposing a lookup of it from the client would
-                        be an email-enumeration surface. Other members show by id until an
-                        invite flow records a display name. */}
-                    {userId === user.id
-                      ? <span className="font-medium">{user.email}</span>
+                    {/* Addresses come from `profile`, which the invite flow populates at
+                        sign-in. `auth.users` is still not readable through RLS — exposing a
+                        lookup of it would be an email-enumeration surface — so `profile` is
+                        scoped to people you already share an app with. Anyone who has not
+                        signed in since that table existed still shows by id. */}
+                    {userId === user.id || emailOf.has(userId)
+                      ? <span className="font-medium">{userId === user.id ? user.email : emailOf.get(userId)}</span>
                       : <span className="font-mono text-xs text-secondary">{userId.slice(0, 8)}…</span>}
                     {userId === user.id && (
                       <span className="ml-2 rounded bg-primary_container px-1.5 py-0.5 text-[10px] font-semibold text-on_primary_container">
@@ -80,6 +97,13 @@ export default async function MembersPage() {
             </tbody>
           </table>
         </section>
+
+        <InviteMember
+          apps={fleet.map((a) => ({ id: a.id, display_name: a.display_name }))}
+          pending={(invites ?? []) as {
+            id: string; email: string; role: string; app_id: string; expires_at: string
+          }[]}
+        />
 
         <div className="mt-6 flex gap-3 rounded-lg border border-outline_variant bg-surface p-4 text-sm text-on_surface_variant">
           <span className="material-symbols-outlined text-[20px] text-primary" aria-hidden>info</span>

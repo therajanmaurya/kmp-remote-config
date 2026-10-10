@@ -65,6 +65,21 @@ export async function GET(request: NextRequest) {
     return failed
   }
 
+  // Sign-in is the moment an email stops being a claim and becomes a verified fact, so it is
+  // where an invitation addressed to that email turns into a membership — and where the address
+  // is mirrored into `profile` so colleagues render as people rather than as truncated uuids.
+  //
+  // Deliberately NOT in `requireUser()`: that runs on every authenticated render, and this is a
+  // write that only has anything to do once per session. Deliberately not fatal either — a
+  // failure here must not cost someone their sign-in. The cost of it failing is that an invite
+  // lands on the next login instead of this one.
+  try {
+    await supabase.rpc("profile_sync")
+    await supabase.rpc("invitation_accept_pending")
+  } catch {
+    // Swallowed on purpose; see above.
+  }
+
   clearSpentPkceVerifiers(request, response)
   return response
 }
