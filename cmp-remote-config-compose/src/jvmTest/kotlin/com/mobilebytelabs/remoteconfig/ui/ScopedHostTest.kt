@@ -3,7 +3,7 @@ package com.mobilebytelabs.remoteconfig.ui
 import com.mobilebytelabs.remoteconfig.RemoteConfigEvaluator
 import com.mobilebytelabs.remoteconfig.local.DeviceIdProvider
 import com.mobilebytelabs.remoteconfig.local.RemoteConfigLocalStore
-import com.mobilebytelabs.remoteconfig.model.Template
+import com.mobilebytelabs.remoteconfig.model.RemoteConfigTemplate
 import com.mobilebytelabs.remoteconfig.network.RemoteConfigService
 import com.russhwolf.settings.MapSettings
 import io.ktor.client.HttpClient
@@ -79,8 +79,9 @@ class ScopedHostTest {
          "is_dismissible":true,"max_impressions":$maxImpressions,"cooldown_hours":0}
     """.trimIndent()
 
-    private fun vm(vararg items: String): RemoteConfigViewModel {
-        val engine = MockEngine {
+    private fun vm(vararg items: String, capture: MutableList<String>? = null): RemoteConfigViewModel {
+        val engine = MockEngine { request ->
+            capture?.add(request.url.toString())
             respond(
                 content = """{"schema_version":1,"configs":[${items.joinToString(",")}]}""",
                 status = HttpStatusCode.OK,
@@ -119,7 +120,7 @@ class ScopedHostTest {
         withTimeout(10_000) { state.first { !it.isLoading } }
     }
 
-    private fun scope(vararg t: Template) = t.mapTo(mutableSetOf()) { it.id }
+    private fun scope(vararg t: RemoteConfigTemplate) = t.mapTo(mutableSetOf()) { it.id }
 
     @Test
     fun a_scoped_host_shows_a_config_the_app_wide_winner_outranks() = runBlocking {
@@ -133,7 +134,7 @@ class ScopedHostTest {
         v.fetchAndSettle()
 
         assertEquals("paywall", v.state.value.activeConfig?.id, "precondition: paywall wins app-wide")
-        assertEquals("update", v.activeFor(scope(Template.UpdateAvailable))?.id)
+        assertEquals("update", v.activeFor(scope(RemoteConfigTemplate.UpdateAvailable))?.id)
     }
 
     @Test
@@ -155,7 +156,7 @@ class ScopedHostTest {
         v.fetchAndSettle()
         assertEquals(
             "high",
-            v.activeFor(scope(Template.Announcement, Template.Notification))?.id,
+            v.activeFor(scope(RemoteConfigTemplate.Announcement, RemoteConfigTemplate.Notification))?.id,
         )
     }
 
@@ -163,7 +164,7 @@ class ScopedHostTest {
     fun a_template_with_nothing_live_shows_nothing() = runBlocking {
         val v = vm(item("a", "announcement"))
         v.fetchAndSettle()
-        assertNull(v.activeFor(scope(Template.PaywallUpsell)))
+        assertNull(v.activeFor(scope(RemoteConfigTemplate.PaywallUpsell)))
     }
 
     @Test
@@ -172,7 +173,7 @@ class ScopedHostTest {
         // it must stay a harmless no-op rather than producing an empty overlay.
         val v = vm(item("flag", "feature_flag", display = "none", rendersUi = false))
         v.fetchAndSettle()
-        assertNull(v.activeFor(scope(Template.FeatureFlag)))
+        assertNull(v.activeFor(scope(RemoteConfigTemplate.FeatureFlag)))
     }
 
     @Test
@@ -183,10 +184,10 @@ class ScopedHostTest {
         // every check again and reappears immediately.
         val v = vm(item("a", "announcement"))
         v.fetchAndSettle()
-        assertEquals("a", v.activeFor(scope(Template.Announcement))?.id)
+        assertEquals("a", v.activeFor(scope(RemoteConfigTemplate.Announcement))?.id)
 
         v.onConfigDismissed("a", permanent = false)
-        assertNull(v.activeFor(scope(Template.Announcement)), "it came back after being dismissed")
+        assertNull(v.activeFor(scope(RemoteConfigTemplate.Announcement)), "it came back after being dismissed")
     }
 
     @Test
@@ -194,26 +195,112 @@ class ScopedHostTest {
         val v = vm(item("a", "notification", display = "bottom_sheet"))
         v.fetchAndSettle()
         v.onActionClicked("a")
-        assertNull(v.activeFor(scope(Template.Notification)))
+        assertNull(v.activeFor(scope(RemoteConfigTemplate.Notification)))
     }
 
     @Test
     fun a_custom_template_id_is_nameable_without_an_sdk_change() = runBlocking {
-        // The reason Template is not an enum: a template registered in the control plane after
+        // The reason RemoteConfigTemplate is not an enum: a template registered in the control plane after
         // this SDK shipped must still be addressable, or every new template is a forced upgrade.
         val v = vm(item("x", "seasonal_banner", display = "banner"))
         v.fetchAndSettle()
-        assertEquals("x", v.activeFor(scope(Template("seasonal_banner")))?.id)
+        assertEquals("x", v.activeFor(scope(RemoteConfigTemplate("seasonal_banner")))?.id)
     }
 
     @Test
     fun the_builtin_constants_match_the_wire_ids() {
         // A prettified constant does not fail loudly — it silently matches no config, in a
         // feature whose correct behaviour is frequently "show nothing".
-        assertEquals("update_available", Template.UpdateAvailable.id)
-        assertEquals("policy_update", Template.PolicyUpdate.id)
-        assertEquals("paywall_upsell", Template.PaywallUpsell.id)
-        assertEquals(15, Template.builtins.size)
-        assertTrue(Template.builtins.all { it.id == it.id.lowercase() && !it.id.contains(' ') })
+        assertEquals("update_available", RemoteConfigTemplate.UpdateAvailable.id)
+        assertEquals("policy_update", RemoteConfigTemplate.PolicyUpdate.id)
+        assertEquals("paywall_upsell", RemoteConfigTemplate.PaywallUpsell.id)
+        assertEquals(15, RemoteConfigTemplate.builtins.size)
+        assertTrue(RemoteConfigTemplate.builtins.all { it.id == it.id.lowercase() && !it.id.contains(' ') })
+    }
+
+    // ── fetch scoping + the single-surface lock ─────────────────────────────────────────────
+
+    @Test
+    fun the_request_is_bounded_to_the_templates_a_host_asked_for() = runBlocking {
+        // The scope bounds the REQUEST, not only the render. A screen hosting two templates has
+        // no use for the other thirteen.
+        val seen = mutableListOf<String>()
+        val v = vm(item("a", "announcement"), capture = seen)
+        v.ensureFetched(scope(RemoteConfigTemplate.UpdateAvailable, RemoteConfigTemplate.PolicyUpdate))
+        withTimeout(10_000) { v.state.first { !it.isLoading } }
+
+        val q = seen.single()
+        assertTrue(q.contains("templates=policy_update%2Cupdate_available"), "sorted scope absent from $q")
+    }
+
+    @Test
+    fun an_unscoped_host_asks_for_everything() = runBlocking {
+        val seen = mutableListOf<String>()
+        val v = vm(item("a", "announcement"), capture = seen)
+        v.ensureFetched(emptySet())
+        withTimeout(10_000) { v.state.first { !it.isLoading } }
+        assertTrue(!seen.single().contains("templates="), "an unscoped host narrowed the request")
+    }
+
+    @Test
+    fun three_hosts_on_one_screen_make_one_request() = runBlocking {
+        // Keyed per host, this would be three round trips on every screen entry.
+        val seen = mutableListOf<String>()
+        val v = vm(item("a", "announcement"), capture = seen)
+        v.ensureFetched(scope(RemoteConfigTemplate.Announcement))
+        v.ensureFetched(scope(RemoteConfigTemplate.Announcement))
+        v.ensureFetched(scope(RemoteConfigTemplate.Announcement))
+        withTimeout(10_000) { v.state.first { !it.isLoading } }
+        assertEquals(1, seen.size)
+    }
+
+    @Test
+    fun a_wider_scope_refetches_but_a_narrower_one_does_not() = runBlocking {
+        val seen = mutableListOf<String>()
+        val v = vm(item("a", "announcement"), capture = seen)
+        v.ensureFetched(scope(RemoteConfigTemplate.Announcement))
+        withTimeout(10_000) { v.state.first { !it.isLoading } }
+
+        // Widening: the set we hold cannot answer it.
+        v.ensureFetched(scope(RemoteConfigTemplate.PaywallUpsell))
+        withTimeout(10_000) { v.state.first { !it.isLoading } }
+        assertEquals(2, seen.size, "widening the scope should re-fetch")
+
+        // Narrowing: what we already hold is a superset, so re-asking would spend a round trip
+        // to receive less.
+        v.ensureFetched(scope(RemoteConfigTemplate.Announcement))
+        assertEquals(2, seen.size, "narrowing the scope should not re-fetch")
+    }
+
+    @Test
+    fun only_one_host_may_hold_the_surface() = runBlocking {
+        val v = vm(item("a", "announcement"))
+        v.fetchAndSettle()
+        val first = Any()
+        val second = Any()
+        assertTrue(v.claimSurface(first, "a"), "the first claimant should win")
+        assertTrue(!v.claimSurface(second, "a"), "a second host rendered over the first")
+    }
+
+    @Test
+    fun the_surface_passes_on_when_the_holder_releases_it() = runBlocking {
+        // Otherwise a dismissed overlay would lock out every other host for the session.
+        val v = vm(item("a", "announcement"))
+        v.fetchAndSettle()
+        val first = Any()
+        val second = Any()
+        v.claimSurface(first, "a")
+        v.releaseSurface(first)
+        assertTrue(v.claimSurface(second, "a"), "the surface never passed on")
+    }
+
+    @Test
+    fun reclaiming_for_a_new_config_is_not_a_second_claimant() = runBlocking {
+        // The same host recomposing for a different config must not lock itself out.
+        val v = vm(item("a", "announcement"))
+        v.fetchAndSettle()
+        val only = Any()
+        assertTrue(v.claimSurface(only, "a"))
+        assertTrue(v.claimSurface(only, "b"))
     }
 }

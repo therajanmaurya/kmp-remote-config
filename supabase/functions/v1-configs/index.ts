@@ -101,8 +101,22 @@ Deno.serve(async (req) => {
     // would do it silently on precisely the apps nobody has reviewed yet.
     const snapshot = ((data?.content ?? []) as unknown as Row[]);
 
+    // A client may bound the request to the templates the screen it is rendering actually
+    // hosts. Empty or absent means everything, which is what an unscoped host asks for and what
+    // every client before this sent.
+    //
+    // Narrowing only. This cannot widen what a caller receives — every other filter below still
+    // runs — so the worst a malformed value can do is return less, never more.
+    const wanted = new Set(
+      (new URL(req.url).searchParams.get("templates") ?? "")
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean),
+    );
+
     const configs = snapshot
       .filter((r) => r.template != null)
+      .filter((r) => wanted.size === 0 || wanted.has(r.template_id))
       // Schedule is evaluated HERE rather than frozen into the snapshot, so a config published
       // today with a start of next Tuesday begins serving on Tuesday with no second publish.
       // Everything else about the row is fixed at publish; only the clock moves.

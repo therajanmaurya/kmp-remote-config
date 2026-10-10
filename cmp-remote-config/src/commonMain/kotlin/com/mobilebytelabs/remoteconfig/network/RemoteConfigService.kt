@@ -96,10 +96,22 @@ class RemoteConfigService(
      * `screen` scopes the request; null means "untargeted configs only", which is what the
      * server returns when the parameter is absent.
      */
-    suspend fun fetchConfigs(screen: String?): ConfigFetchResult = try {
+    /**
+     * @param templates bound the request to these template ids. EMPTY means "everything this
+     *   caller is eligible for" — the historical behaviour, and what an unscoped host asks for.
+     *   A screen hosting two templates has no use for the other thirteen, and shipping them
+     *   anyway costs payload and hands the client content it can only discard.
+     */
+    suspend fun fetchConfigs(
+        screen: String?,
+        templates: Set<String> = emptySet(),
+    ): ConfigFetchResult = try {
         val response: HttpResponse = httpClient.get("$baseUrl/v1-configs") {
             identityHeaders()
             if (screen != null) parameter("screen", screen)
+            // Sorted so the same scope produces the same URL regardless of the order hosts
+            // happened to compose in — otherwise an edge cache sees two URLs for one answer.
+            if (templates.isNotEmpty()) parameter("templates", templates.sorted().joinToString(","))
         }
         if (response.status.isSuccess()) {
             ConfigFetchResult.Success(json.decodeFromString(response.bodyAsText()))

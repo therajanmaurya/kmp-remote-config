@@ -2,6 +2,7 @@ package com.mobilebytelabs.remoteconfig.ui
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -9,7 +10,7 @@ import com.mobilebytelabs.remoteconfig.dispatch.ActionDispatcher
 import com.mobilebytelabs.remoteconfig.model.ActionType
 import com.mobilebytelabs.remoteconfig.model.DisplayType
 import com.mobilebytelabs.remoteconfig.model.RemoteConfigItem
-import com.mobilebytelabs.remoteconfig.model.Template
+import com.mobilebytelabs.remoteconfig.model.RemoteConfigTemplate
 import com.mobilebytelabs.remoteconfig.ui.templates.DesignedTemplateBody
 import com.mobilebytelabs.remoteconfig.ui.templates.TemplateActions
 import com.mobilebytelabs.remoteconfig.ui.templates.hasDesignedBody
@@ -24,7 +25,7 @@ import org.koin.compose.viewmodel.koinViewModel
  *     @Composable
  *     fun HomeScreen() {
  *         // …your screen…
- *         RemoteConfigHost(Template.UpdateAvailable, Template.PolicyUpdate)
+ *         RemoteConfigHost(RemoteConfigTemplate.UpdateAvailable, RemoteConfigTemplate.PolicyUpdate)
  *     }
  *
  * Name none and it behaves as it always did — whichever config the evaluator picks, app-wide:
@@ -57,7 +58,7 @@ import org.koin.compose.viewmodel.koinViewModel
  */
 @Composable
 fun RemoteConfigHost(
-    vararg templates: Template,
+    vararg templates: RemoteConfigTemplate,
     viewModel: RemoteConfigViewModel = koinViewModel(),
     onAction: ((actionType: ActionType, actionValue: String?) -> Unit)? = null,
 ) {
@@ -66,10 +67,67 @@ fun RemoteConfigHost(
     // `templates` is a vararg, so it is a fresh array on every call and cannot be a remember
     // key — keyed on it directly, the memo below would miss every time. The Set is.
     val scope: Set<String> = templates.mapTo(mutableSetOf()) { it.id }
+    RemoteConfigHostScoped(scope, viewModel, onAction)
+}
+
+/**
+ * Name the config by its raw id, for a template this SDK has no constant for.
+ *
+ *     RemoteConfigHost("seasonal_banner")
+ *
+ * Identical in every other way. It exists because an operator can register a template in the
+ * control plane at any time, and that template must be addressable from a call site without
+ * waiting for an SDK release — the renderer already handles it, since anything without a
+ * designed body falls through to the generic renderer.
+ *
+ * Takes the first id separately so that `RemoteConfigHost()` with no arguments stays
+ * unambiguous and keeps meaning "no scope".
+ */
+@Composable
+fun RemoteConfigHost(
+    first: String,
+    vararg rest: String,
+    viewModel: RemoteConfigViewModel = koinViewModel(),
+    onAction: ((actionType: ActionType, actionValue: String?) -> Unit)? = null,
+) {
+    val scope: Set<String> = buildSet {
+        add(first)
+        rest.forEach { add(it) }
+    }
+    RemoteConfigHostScoped(scope, viewModel, onAction)
+}
+
+@Composable
+private fun RemoteConfigHostScoped(
+    scope: Set<String>,
+    viewModel: RemoteConfigViewModel,
+    onAction: ((actionType: ActionType, actionValue: String?) -> Unit)?,
+) {
+    val state by viewModel.state.collectAsStateWithLifecycle()
+
+    // The host asks for what it needs; the app never calls fetch. Setup is one Koin block and
+    // nothing else is a step to remember — an app that forgot `fetchAndEvaluate()` showed no
+    // configs and raised no error, which is the whole product silently doing nothing.
+    //
+    // Keyed on the scope, and the ViewModel unions and de-duplicates, so three hosts on one
+    // screen make one request rather than three.
+    LaunchedEffect(scope) { viewModel.ensureFetched(scope) }
 
     val config = remember(scope, state.delivered, state.suppressed, state.activeConfig) {
         if (scope.isEmpty()) state.activeConfig else viewModel.activeFor(scope)
     } ?: return
+
+    // At most one surface at a time. Without this, two hosts on one screen each pick a winner
+    // independently and the user gets two overlays stacked on one another.
+    val owner = remember { Any() }
+    val surfaceOwner by viewModel.surfaceOwner.collectAsStateWithLifecycle()
+    DisposableEffect(owner, config.id) {
+        viewModel.claimSurface(owner, config.id)
+        onDispose { viewModel.releaseSurface(owner) }
+    }
+    // Losing the claim is not an error — the other host is showing something, and this one
+    // renders on the next composition after that is dismissed.
+    if (surfaceOwner?.first !== owner) return
 
     LaunchedEffect(config.id) {
         viewModel.onConfigShown(config.id)

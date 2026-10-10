@@ -57,6 +57,15 @@ class RemoteConfigViewModel(
     private val _state = MutableStateFlow(RemoteConfigState())
     val state: StateFlow<RemoteConfigState> = _state.asStateFlow()
 
+    /** Templates any host has asked for so far; the request is their union. */
+    private var requested: Set<String> = emptySet()
+    private var unscopedRequested = false
+    private var fetched = false
+
+    /** (owner, configId) of the host currently allowed to render. */
+    private val _surfaceOwner = MutableStateFlow<Pair<Any, String>?>(null)
+    val surfaceOwner: StateFlow<Pair<Any, String>?> = _surfaceOwner.asStateFlow()
+
     private val deviceId: String get() = deviceIdProvider.getDeviceId()
 
     /**
@@ -67,12 +76,15 @@ class RemoteConfigViewModel(
      * configs that arrive have already matched. The evaluator applies only what the device
      * knows: impression caps, dismissal, cooldown.
      */
-    fun fetchAndEvaluate(screen: String? = null) {
+    fun fetchAndEvaluate(screen: String? = null, templates: Set<String> = emptySet()) {
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true, rejection = null) }
 
             // Hard timeout so a slow or blocked network cannot hang the host app's UI.
-            val result = withTimeoutOrNull(FETCH_TIMEOUT_MS) { service.fetchConfigs(screen) }
+            // The scope bounds the REQUEST, not just the render: a screen that hosts two
+            // templates has no use for the other thirteen, and shipping them anyway costs
+            // payload and hands the client content it will only discard.
+            val result = withTimeoutOrNull(FETCH_TIMEOUT_MS) { service.fetchConfigs(screen, templates) }
 
             when (result) {
                 is ConfigFetchResult.Success -> {
@@ -127,6 +139,60 @@ class RemoteConfigViewModel(
      * Pure with respect to the store — it reads, never writes — so a composable may call it
      * inside `remember`.
      */
+    /**
+     * Make sure the configs this call site needs have been asked for. Safe to call from every
+     * host on every composition.
+     *
+     * ── Why the host fetches and the app does not ───────────────────────────────────────────
+     * Setup is one Koin block; nothing else should be a step an integrator has to remember. An
+     * app that forgot `fetchAndEvaluate()` showed no configs and produced no error — the whole
+     * product silently doing nothing, which is the failure this one exists to remove.
+     *
+     * ── Why a UNION and not a fetch per host ────────────────────────────────────────────────
+     * Several hosts can be composed at once, each naming different templates. One request for
+     * the union of what they asked for beats one request each: the server answers the same set,
+     * and a screen with three hosts does not make three round trips on every entry.
+     *
+     * Widening re-fetches; narrowing does not. A set we already hold is a superset of a
+     * narrower request, so re-asking would spend a round trip to receive less.
+     */
+    fun ensureFetched(templateIds: Set<String>, screen: String? = null) {
+        val widened = requested + templateIds
+        // An unscoped host asks for everything, and "everything" can never be widened by a
+        // later scoped host — so once one appears, stop narrowing the request forever.
+        val wantsAll = unscopedRequested || templateIds.isEmpty()
+        if (fetched && widened.size == requested.size && wantsAll == unscopedRequested) return
+
+        requested = widened
+        unscopedRequested = wantsAll
+        fetched = true
+        fetchAndEvaluate(screen, if (wantsAll) emptySet() else widened)
+    }
+
+    /**
+     * Claim the right to be the one surface on screen.
+     *
+     * Two hosts on one screen each pick a winner independently, so both would render and the
+     * user would get two overlays stacked on one another. Only the first claimant renders; the
+     * rest wait until it is dismissed. "At most one interruption at a time" becomes a property
+     * of the SDK rather than a convention each integrator has to keep.
+     *
+     * Keyed by the config id, not by the host: re-composing the same host for the same config
+     * must not look like a second claimant.
+     */
+    fun claimSurface(owner: Any, configId: String): Boolean {
+        val current = _surfaceOwner.value
+        if (current == null || current.first === owner) {
+            _surfaceOwner.value = owner to configId
+            return true
+        }
+        return false
+    }
+
+    fun releaseSurface(owner: Any) {
+        if (_surfaceOwner.value?.first === owner) _surfaceOwner.value = null
+    }
+
     fun activeFor(templateIds: Set<String>): RemoteConfigItem? {
         val s = _state.value
         val candidates = s.delivered

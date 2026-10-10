@@ -134,7 +134,7 @@ fun SampleScreen(config: SampleRemoteConfig) {
                     // Unscoped: whatever the evaluator picked, app-wide. A real screen usually
                     // names what it hosts instead —
                     //
-                    //     RemoteConfigHost(Template.UpdateAvailable, Template.PolicyUpdate)
+                    //     RemoteConfigHost(RemoteConfigTemplate.UpdateAvailable, RemoteConfigTemplate.PolicyUpdate)
                     //
                     // which bounds this screen to those templates and lets a paywall live on
                     // the screen that actually sells something. This sample stays unscoped on
