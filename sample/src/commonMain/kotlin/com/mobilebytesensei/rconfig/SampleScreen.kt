@@ -131,6 +131,14 @@ fun SampleScreen(config: SampleRemoteConfig) {
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    // Unscoped: whatever the evaluator picked, app-wide. A real screen usually
+                    // names what it hosts instead —
+                    //
+                    //     RemoteConfigHost(Template.UpdateAvailable, Template.PolicyUpdate)
+                    //
+                    // which bounds this screen to those templates and lets a paywall live on
+                    // the screen that actually sells something. This sample stays unscoped on
+                    // purpose: its job is to show whatever the operator published.
                     RemoteConfigHost()
                 }
 

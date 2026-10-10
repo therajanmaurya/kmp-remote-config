@@ -639,6 +639,37 @@ public final class com/mobilebytelabs/remoteconfig/model/SdkSettings$Companion {
 	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 }
 
+public final class com/mobilebytelabs/remoteconfig/model/Template {
+	public static final field Companion Lcom/mobilebytelabs/remoteconfig/model/Template$Companion;
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lcom/mobilebytelabs/remoteconfig/model/Template;
+	public static synthetic fun copy$default (Lcom/mobilebytelabs/remoteconfig/model/Template;Ljava/lang/String;ILjava/lang/Object;)Lcom/mobilebytelabs/remoteconfig/model/Template;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getId ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/mobilebytelabs/remoteconfig/model/Template$Companion {
+	public final fun getAnnouncement ()Lcom/mobilebytelabs/remoteconfig/model/Template;
+	public final fun getBuiltins ()Ljava/util/List;
+	public final fun getFeatureFlag ()Lcom/mobilebytelabs/remoteconfig/model/Template;
+	public final fun getGeoNotice ()Lcom/mobilebytelabs/remoteconfig/model/Template;
+	public final fun getIncidentOutage ()Lcom/mobilebytelabs/remoteconfig/model/Template;
+	public final fun getInformation ()Lcom/mobilebytelabs/remoteconfig/model/Template;
+	public final fun getMaintenance ()Lcom/mobilebytelabs/remoteconfig/model/Template;
+	public final fun getNotification ()Lcom/mobilebytelabs/remoteconfig/model/Template;
+	public final fun getOnboardingTip ()Lcom/mobilebytelabs/remoteconfig/model/Template;
+	public final fun getPaywallUpsell ()Lcom/mobilebytelabs/remoteconfig/model/Template;
+	public final fun getPolicyUpdate ()Lcom/mobilebytelabs/remoteconfig/model/Template;
+	public final fun getPromoOffer ()Lcom/mobilebytelabs/remoteconfig/model/Template;
+	public final fun getRatingPrompt ()Lcom/mobilebytelabs/remoteconfig/model/Template;
+	public final fun getSurveyNps ()Lcom/mobilebytelabs/remoteconfig/model/Template;
+	public final fun getUpdateAvailable ()Lcom/mobilebytelabs/remoteconfig/model/Template;
+	public final fun getWhatsNew ()Lcom/mobilebytelabs/remoteconfig/model/Template;
+}
+
 public final class com/mobilebytelabs/remoteconfig/network/ConfigEvent {
 	public static final field Companion Lcom/mobilebytelabs/remoteconfig/network/ConfigEvent$Companion;
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V

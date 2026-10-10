@@ -2,32 +2,74 @@ package com.mobilebytelabs.remoteconfig.ui
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mobilebytelabs.remoteconfig.dispatch.ActionDispatcher
 import com.mobilebytelabs.remoteconfig.model.ActionType
 import com.mobilebytelabs.remoteconfig.model.DisplayType
 import com.mobilebytelabs.remoteconfig.model.RemoteConfigItem
+import com.mobilebytelabs.remoteconfig.model.Template
 import com.mobilebytelabs.remoteconfig.ui.templates.DesignedTemplateBody
 import com.mobilebytelabs.remoteconfig.ui.templates.TemplateActions
 import com.mobilebytelabs.remoteconfig.ui.templates.hasDesignedBody
 import org.koin.compose.viewmodel.koinViewModel
 
 /**
- * Render the active remote-config CTA.
+ * Render the remote-config surface this screen should show.
  *
- * Action routing:
+ * ── Declaring what a screen hosts ───────────────────────────────────────────────────────────
+ * Name the templates this screen is willing to show, and only those are considered here:
+ *
+ *     @Composable
+ *     fun HomeScreen() {
+ *         // …your screen…
+ *         RemoteConfigHost(Template.UpdateAvailable, Template.PolicyUpdate)
+ *     }
+ *
+ * Name none and it behaves as it always did — whichever config the evaluator picks, app-wide:
+ *
+ *     RemoteConfigHost()
+ *
+ * The scope is a statement about the SCREEN, which is why it belongs in code rather than only
+ * on the dashboard. `config.screens[]` can target a screen by name, but that couples an
+ * operator's targeting to strings that must match route names they cannot see, and nothing
+ * fails when they drift. Declaring it at the call site means a paywall cannot surface on a
+ * settings screen because the settings screen never said it hosts one. The two compose: the
+ * server still targets, and this bounds what the screen will accept.
+ *
+ * ── What is NOT re-implemented here ─────────────────────────────────────────────────────────
+ * Selection runs through the same `RemoteConfigEvaluator` as the unscoped path, just over a
+ * filtered list — so impression caps, dismissal and cooldown keep their single definition. A
+ * config capped at one impression shows once and, after the user reopens the app, does not show
+ * again; that is the evaluator's behaviour and scoping does not get its own copy of it.
+ *
+ * Priority still breaks ties: if two named templates are eligible at once, the higher
+ * `priority` wins and the other remains eligible for the next composition.
+ *
+ * ── Action routing ──────────────────────────────────────────────────────────────────────────
  * - Pass [onAction] for explicit per-screen control (escape hatch).
- * - Omit [onAction] and use the `action(...)` DSL inside `remoteConfig { … }` —
- *   actions dispatch to your registered handlers via [ActionDispatcher].
+ * - Omit [onAction] and use the `action(...)` DSL inside `remoteConfig { … }` — actions
+ *   dispatch to your registered handlers via [ActionDispatcher], and URL / DEEPLINK / STORE
+ *   resolve with no handler registered at all.
+ *
+ * @param templates the templates this screen hosts. Empty = no scope, the previous behaviour.
  */
 @Composable
 fun RemoteConfigHost(
+    vararg templates: Template,
     viewModel: RemoteConfigViewModel = koinViewModel(),
     onAction: ((actionType: ActionType, actionValue: String?) -> Unit)? = null,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val config = state.activeConfig ?: return
+
+    // `templates` is a vararg, so it is a fresh array on every call and cannot be a remember
+    // key — keyed on it directly, the memo below would miss every time. The Set is.
+    val scope: Set<String> = templates.mapTo(mutableSetOf()) { it.id }
+
+    val config = remember(scope, state.delivered, state.suppressed, state.activeConfig) {
+        if (scope.isEmpty()) state.activeConfig else viewModel.activeFor(scope)
+    } ?: return
 
     LaunchedEffect(config.id) {
         viewModel.onConfigShown(config.id)

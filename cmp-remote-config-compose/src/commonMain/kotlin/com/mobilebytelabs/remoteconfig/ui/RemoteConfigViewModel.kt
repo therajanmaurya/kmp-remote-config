@@ -27,6 +27,24 @@ data class RemoteConfigState(
     val activeConfig: RemoteConfigItem? = null,
     val isLoading: Boolean = true,
     val rejection: String? = null,
+    /**
+     * Everything the server delivered this fetch, before device-side selection.
+     *
+     * Kept because selection is no longer a single app-wide answer: a `RemoteConfigHost` scoped
+     * to a template list has to evaluate ITS subset, and it must do that through the same
+     * evaluator rather than filtering `activeConfig` after the fact — which would show nothing
+     * whenever the one app-wide winner happened to be a template that call site did not name.
+     */
+    val delivered: List<RemoteConfigItem> = emptyList(),
+    /**
+     * Configs dismissed or acted on during THIS session.
+     *
+     * A non-permanent dismissal writes nothing to the local store, so the evaluator cannot see
+     * it. Before scoping that was invisible: dismissal just nulled `activeConfig` and nothing
+     * re-ran the evaluator. Now that a scoped host re-evaluates, the same config would
+     * immediately pass every check and reappear under the user's finger.
+     */
+    val suppressed: Set<String> = emptySet(),
 )
 
 class RemoteConfigViewModel(
@@ -60,7 +78,13 @@ class RemoteConfigViewModel(
                 is ConfigFetchResult.Success -> {
                     val active = evaluator.evaluate(result.envelope.configs)
                     active?.let { localStore.cacheConfig(it) }
-                    _state.update { it.copy(activeConfig = active, isLoading = false) }
+                    _state.update {
+                        it.copy(
+                            activeConfig = active,
+                            delivered = result.envelope.configs,
+                            isLoading = false,
+                        )
+                    }
                 }
 
                 is ConfigFetchResult.Rejected -> {
@@ -75,17 +99,40 @@ class RemoteConfigViewModel(
                 // ONLY if it still passes the same device-side rules. The cache is a network
                 // fallback, never a bypass of a cooldown or an impression cap.
                 is ConfigFetchResult.Unavailable, null -> {
-                    val cachedEligible = localStore.getCachedConfig()
-                        ?.let { evaluator.evaluate(listOf(it)) }
+                    val cached = localStore.getCachedConfig()
+                    val cachedEligible = cached?.let { evaluator.evaluate(listOf(it)) }
                     _state.update {
                         it.copy(
                             activeConfig = cachedEligible ?: it.activeConfig,
+                            // The cache holds the last-good config, not the last-good SET, so a
+                            // scoped host offline sees at most this one. Better than nothing and
+                            // honest about it: inventing a wider set would mean serving configs
+                            // the evaluator never cached.
+                            delivered = listOfNotNull(cached).ifEmpty { it.delivered },
                             isLoading = false,
                         )
                     }
                 }
             }
         }
+    }
+
+    /**
+     * The config to show for a call site that named a set of templates.
+     *
+     * Runs the SAME evaluator over a filtered list rather than filtering its answer: impression
+     * caps, dismissal and cooldown stay in one place, and "show once" keeps meaning what it
+     * means everywhere else. An empty set means "no scope" and behaves exactly as before.
+     *
+     * Pure with respect to the store — it reads, never writes — so a composable may call it
+     * inside `remember`.
+     */
+    fun activeFor(templateIds: Set<String>): RemoteConfigItem? {
+        val s = _state.value
+        val candidates = s.delivered
+            .filter { templateIds.isEmpty() || it.template in templateIds }
+            .filterNot { it.id in s.suppressed }
+        return evaluator.evaluate(candidates)
     }
 
     fun onConfigShown(configId: String) {
@@ -99,14 +146,14 @@ class RemoteConfigViewModel(
             localStore.markDismissed(configId)
             report(configId, type = "dismiss", at = GMTDate().timestamp)
         }
-        _state.update { it.copy(activeConfig = null) }
+        _state.update { it.copy(activeConfig = null, suppressed = it.suppressed + configId) }
     }
 
     fun onActionClicked(configId: String) {
         val now = GMTDate().timestamp
         localStore.incrementImpressions(configId, now)
         report(configId, type = "action", at = now)
-        _state.update { it.copy(activeConfig = null) }
+        _state.update { it.copy(activeConfig = null, suppressed = it.suppressed + configId) }
     }
 
     /**

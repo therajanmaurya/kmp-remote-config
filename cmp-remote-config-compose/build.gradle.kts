@@ -169,6 +169,8 @@ kotlin {
 
         commonTest.dependencies {
             implementation(libs.kotlin.test)
+            // In-memory Settings, so the scoped-host tests do not touch the real platform store.
+            implementation(libs.multiplatform.settings.test)
             // The DSL test drives the wiring Koin actually produces, which needs an engine.
             implementation(libs.ktor.client.mock)
             implementation(libs.kotlinx.coroutines.test)
