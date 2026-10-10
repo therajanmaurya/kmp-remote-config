@@ -138,6 +138,8 @@ kotlin {
             implementation(libs.cmp.network.monitor)
             // Native in-app review for the `rating_prompt` template.
             implementation(libs.cmp.app.review)
+            // In-app update for the `update_available` template.
+            implementation(libs.cmp.inapp.update)
 
             // Compose
             implementation(compose.material3)

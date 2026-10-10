@@ -35,6 +35,9 @@ public final class com/mobilebytelabs/remoteconfig/RemoteConfigEvaluator {
 
 public final class com/mobilebytelabs/remoteconfig/dispatch/ActionContext {
 	public fun <init> ()V
+	public fun <init> (Lcom/mobilebytelabs/remoteconfig/model/RemoteConfigItem;)V
+	public synthetic fun <init> (Lcom/mobilebytelabs/remoteconfig/model/RemoteConfigItem;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getConfig ()Lcom/mobilebytelabs/remoteconfig/model/RemoteConfigItem;
 }
 
 public abstract interface class com/mobilebytelabs/remoteconfig/dispatch/ActionHandler {
@@ -384,6 +387,7 @@ public final class com/mobilebytelabs/remoteconfig/model/ActionType$Companion {
 	public final fun getREVIEW-cjiFGYA ()Ljava/lang/String;
 	public final fun getSTORE-cjiFGYA ()Ljava/lang/String;
 	public final fun getSUBMIT-cjiFGYA ()Ljava/lang/String;
+	public final fun getUPDATE-cjiFGYA ()Ljava/lang/String;
 	public final fun getURL-cjiFGYA ()Ljava/lang/String;
 }
 

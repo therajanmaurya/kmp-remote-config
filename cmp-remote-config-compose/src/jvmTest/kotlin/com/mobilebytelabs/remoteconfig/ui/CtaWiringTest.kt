@@ -245,4 +245,73 @@ class CtaWiringTest {
         AppReview.reset()
         ActionDispatcher.resetScope()
     }
+
+    @Test
+    fun update_falls_back_to_the_listing_where_in_app_update_does_not_exist() {
+        // Named for what it actually proves. On the JVM `AppUpdate.isSupported()` is false, so
+        // this is the FALLBACK branch — the one every non-Android target takes, and the one
+        // that must never leave the Update button dead.
+        //
+        // It does NOT distinguish UPDATE from STORE: both end at `launcher.open(store_url)`,
+        // so reverting the template to STORE leaves this green. That distinction is pinned by
+        // `the_action_carries_the_config_that_fired_it`, which registers a handler for UPDATE
+        // specifically. An earlier name here claimed to prove the in-app update started, which
+        // it never did.
+        //
+        // That the Android path requests a real Play flow is verified on a device; it cannot be
+        // asserted here, because this library ships no test fake the way cmp-app-review does.
+        val launcher = FakeUrlLauncher()
+        ActionDispatcher.setLauncherForTest(launcher)
+        ActionDispatcher.setScopeForTest(CoroutineScope(UnconfinedTestDispatcher()))
+
+        runComposeUiTest {
+            setContent {
+                RemoteConfigSurface(
+                    item(
+                        "update_available",
+                        """{
+                          "store_url": "https://play.google.com/store/apps/details?id=x",
+                          "forced": false,
+                          "current_version": "1.0.0",
+                          "release_notes": "Fixes."
+                        }""",
+                    ),
+                )
+            }
+            onNodeWithText("Update").performClick()
+        }
+
+        assertEquals(
+            listOf("https://play.google.com/store/apps/details?id=x"),
+            launcher.opened.map { it.url },
+            "the Update button did nothing on a platform with no in-app update",
+        )
+        ActionDispatcher.resetScope()
+    }
+
+    @Test
+    fun the_action_carries_the_config_that_fired_it() {
+        // ActionContext was empty, so a handler got a bare string and could not tell WHICH
+        // config fired. UPDATE needs `forced` from the payload, and consumers wanting to log
+        // "which announcement did they tap" needed the same thing.
+        var seen: com.mobilebytelabs.remoteconfig.model.RemoteConfigItem? = null
+        val handler: ActionHandler = { _, ctx -> seen = ctx.config }
+        ActionDispatcher.register(mapOf(ActionType.UPDATE to handler))
+
+        runComposeUiTest {
+            setContent {
+                RemoteConfigSurface(
+                    item(
+                        "update_available",
+                        """{"store_url":"https://example.test/a","forced":true,"current_version":"1.0.0"}""",
+                        display = "fullscreen",
+                    ),
+                )
+            }
+            onNodeWithText("Update now").performClick()
+        }
+
+        assertEquals("wiring-update_available", seen?.id, "the handler could not see its config")
+        assertEquals("update_available", seen?.template)
+    }
 }

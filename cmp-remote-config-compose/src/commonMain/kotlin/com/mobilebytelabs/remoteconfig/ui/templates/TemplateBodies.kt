@@ -107,8 +107,15 @@ internal fun UpdateAvailableBody(item: RemoteConfigItem, p: TemplatePayload, a: 
         }
 
         VSpace(4)
+        // UPDATE, not STORE. Play can download and install without the app leaving the
+        // foreground, and a forced update becomes a flow the user cannot wander away from —
+        // which a store link cannot promise, because they land on a listing and may simply
+        // never press the button.
+        //
+        // `store_url` still travels as the value: it is the fallback everywhere in-app update
+        // does not exist, which today is everywhere except Android.
         PrimaryAction(if (forced) "Update now" else "Update") {
-            a.onPrimary(ActionType.STORE.value, p.string("store_url"))
+            a.onPrimary(ActionType.UPDATE.value, p.string("store_url"))
         }
         // A forced update offers NO way out. Rendering a decline the evaluator would ignore
         // would be a control that lies about what it does.

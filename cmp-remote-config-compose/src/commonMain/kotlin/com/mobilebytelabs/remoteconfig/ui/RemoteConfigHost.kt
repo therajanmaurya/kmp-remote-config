@@ -140,7 +140,9 @@ private fun RemoteConfigHostScoped(
         if (onAction != null) {
             onAction(type, value)
         } else {
-            ActionDispatcher.dispatch(type, value)
+            // The config travels with the action: a handler can see which one fired, and the
+            // built-in UPDATE reads `forced` from its payload.
+            ActionDispatcher.dispatch(type, value, config)
         }
     }
 

@@ -47,7 +47,10 @@ public fun RemoteConfigSurface(
     val display = DisplayType.from(item.display) ?: return
 
     val handle: (ActionType, String?) -> Unit = { type, value ->
-        if (onAction != null) onAction(type, value) else ActionDispatcher.dispatch(type, value)
+        // The item travels with the action here too. Missing it would make every built-in that
+        // reads the payload — UPDATE's `forced` — behave as if the flag were absent, on the one
+        // path a sample or a preview actually exercises.
+        if (onAction != null) onAction(type, value) else ActionDispatcher.dispatch(type, value, item)
     }
 
     if (hasDesignedBody(item.template)) {

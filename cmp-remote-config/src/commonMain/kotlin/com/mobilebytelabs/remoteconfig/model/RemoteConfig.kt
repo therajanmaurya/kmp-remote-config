@@ -94,6 +94,19 @@ value class ActionType(val value: String) {
          * to ask which one it is going to get.
          */
         val REVIEW = ActionType("review")
+
+        /**
+         * Update the app in place, rather than sending the user to a store listing.
+         *
+         * Distinct from [STORE] for the same reason [REVIEW] is: Play can download and install
+         * an update without the app ever leaving the foreground, and a `forced` update becomes
+         * a blocking flow the user cannot wander away from — which a store link cannot promise,
+         * because the user lands on a listing and may simply never press Update.
+         *
+         * Falls back to the listing where in-app update is unavailable, which today is
+         * everywhere except Android.
+         */
+        val UPDATE = ActionType("update")
         val DISMISS = ActionType("dismiss")
         val PREMIUM = ActionType("premium")
 

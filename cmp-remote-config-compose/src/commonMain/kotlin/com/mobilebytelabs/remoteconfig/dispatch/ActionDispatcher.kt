@@ -2,6 +2,11 @@ package com.mobilebytelabs.remoteconfig.dispatch
 
 import co.touchlab.kermit.Logger
 import com.mobilebytelabs.kmptoolkit.appreview.AppReview
+import com.mobilebytelabs.kmptoolkit.appupdate.AppUpdate
+import com.mobilebytelabs.kmptoolkit.appupdate.UpdateType
+import com.mobilebytelabs.remoteconfig.model.RemoteConfigItem
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -74,16 +79,43 @@ internal object ActionDispatcher {
         handlers.putAll(map)
     }
 
-    fun dispatch(type: ActionType, value: String?) {
+    fun dispatch(type: ActionType, value: String?, config: RemoteConfigItem? = null) {
         // The consumer's handler wins. Running both would be two navigations from one tap.
         handlers[type]?.let { handler ->
-            handler(value, ActionContext())
+            handler(value, ActionContext(config))
             return
         }
 
         when (type) {
             // `store_url` is a full URL in every schema that carries one, so STORE is a URL open
             // under a different name rather than a separate platform capability.
+            ActionType.UPDATE -> {
+                // `forced` comes from the PAYLOAD, not the value — which is why ActionContext
+                // now carries the config. An immediate update is a blocking Play flow the user
+                // cannot wander away from; a flexible one downloads in the background. The
+                // template already distinguishes them, and until now that distinction died at
+                // the dispatcher boundary and both became "open the store".
+                val forced = config?.payload
+                    ?.get("forced")?.jsonPrimitive?.booleanOrNull ?: false
+                scope.launch {
+                    val handled = AppUpdate.isSupported() && runCatching {
+                        AppUpdate.startUpdate(
+                            if (forced) UpdateType.IMMEDIATE else UpdateType.FLEXIBLE,
+                        ).isSuccess
+                    }.onFailure {
+                        log.w { "in-app update failed: ${it::class.simpleName}" }
+                    }.getOrDefault(false)
+
+                    if (!handled) {
+                        // Everywhere except Android, and whenever Play declines. The listing is
+                        // the honest fallback: a dead Update button is worse than a detour.
+                        val fallback = value?.trim()
+                        if (!fallback.isNullOrEmpty()) launcher.open(fallback)
+                        else AppUpdate.openStoreForUpdate()
+                    }
+                }
+            }
+
             ActionType.REVIEW -> {
                 // The native sheet, not a store link. `requestReview` is rate-limited and
                 // silently ignored by both platforms when it has been shown too recently —
