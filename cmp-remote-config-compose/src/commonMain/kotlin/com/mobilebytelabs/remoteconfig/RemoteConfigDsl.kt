@@ -1,6 +1,6 @@
 package com.mobilebytelabs.remoteconfig
 
-import com.mobilebytelabs.remoteconfig.platform.startReachabilityMonitoring
+import io.github.mobilebytelabs.kmptoolkit.networkmonitor.NetworkMonitorProvider
 import com.mobilebytelabs.remoteconfig.platform.PlatformIdentity
 
 import io.ktor.client.HttpClient
@@ -44,11 +44,16 @@ import org.koin.core.module.dsl.viewModelOf
  * action CTAs route to handlers registered here.
  */
 fun Module.remoteConfig(block: RemoteConfigBuilder.() -> Unit) {
-    // Started here, at DI setup, rather than lazily at first use. On Apple the check reads what
-    // NWPathMonitor last reported, and a monitor started by the first fetch has not reported
-    // yet — so the one launch the check exists to help is the one launch it would miss. A no-op
-    // everywhere else.
-    startReachabilityMonitoring()
+    // Connectivity comes from cmp-network-monitor, the toolkit's own library, rather than from
+    // an expect/actual written here. It already covers every target this SDK ships to and adds
+    // validation and captive-portal detection on top — a portal answers DNS and returns a login
+    // page, so "an interface is up" and "a request will succeed" are different questions, and
+    // the second is the one a fetch cares about.
+    //
+    // Installed at DI setup rather than at first use: the platform monitors are watchers, and
+    // one started by the first fetch has not reported yet — so the single launch the check
+    // exists to help is the one launch it would miss. `install` is idempotent.
+    NetworkMonitorProvider.install()
 
     val builder = RemoteConfigBuilder().apply(block)
     val settings = builder.build()

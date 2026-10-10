@@ -131,6 +131,11 @@ kotlin {
             // only place that can act on it — making every consumer register a handler per
             // action type is exactly the per-app work this library exists to remove.
             implementation(libs.cmp.open.url)
+            // Connectivity, from the toolkit rather than hand-rolled here. An earlier version of
+            // this feature carried its own expect/actual across seven source sets — including an
+            // NWPathMonitor wrapper — to answer one question this library already answers for
+            // every target, with captive-portal detection and validation on top.
+            implementation(libs.cmp.network.monitor)
 
             // Compose
             implementation(compose.material3)

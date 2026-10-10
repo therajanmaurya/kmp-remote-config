@@ -756,17 +756,3 @@ public final class com/mobilebytelabs/remoteconfig/platform/PlatformIdentity {
 	public final fun getSigningDigest ()Ljava/lang/String;
 }
 
-public final class com/mobilebytelabs/remoteconfig/platform/Reachability : java/lang/Enum {
-	public static final field Reachable Lcom/mobilebytelabs/remoteconfig/platform/Reachability;
-	public static final field Unknown Lcom/mobilebytelabs/remoteconfig/platform/Reachability;
-	public static final field Unreachable Lcom/mobilebytelabs/remoteconfig/platform/Reachability;
-	public static fun getEntries ()Lkotlin/enums/EnumEntries;
-	public static fun valueOf (Ljava/lang/String;)Lcom/mobilebytelabs/remoteconfig/platform/Reachability;
-	public static fun values ()[Lcom/mobilebytelabs/remoteconfig/platform/Reachability;
-}
-
-public final class com/mobilebytelabs/remoteconfig/platform/Reachability_jvmKt {
-	public static final fun currentReachability ()Lcom/mobilebytelabs/remoteconfig/platform/Reachability;
-	public static final fun startReachabilityMonitoring ()V
-}
-

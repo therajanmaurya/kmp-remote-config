@@ -192,7 +192,11 @@ coil-compose = { module = "io.coil-kt.coil3:coil-compose", version = "3.2.0" }
 coil-network-ktor = { module = "io.coil-kt.coil3:coil-network-ktor3", version = "3.2.0" }
 
 # KmpToolkit (for consumer reference — modules use project() internally)
-cmp-network-monitor = { module = "io.github.mobilebytelabs:cmp-network-monitor", version = "3.2.1" }
+# Same provenance as cmp-observe and cmp-open-url: consumed from Maven Central, never
+# vendored. Pinned to the same version ref as its siblings — it was left at a hardcoded
+# 3.2.1 while the rest of the toolkit moved on, which is how one artifact silently drifts
+# a release train behind the others it shares types with.
+cmp-network-monitor = { module = "io.github.mobilebytelabs:cmp-network-monitor", version.ref = "cmpObserve" }
 cmp-network-monitor-compose = { module = "io.github.mobilebytelabs:cmp-network-monitor-compose", version = "3.2.1" }
 
 roborazzi-compose-desktop = { module = "io.github.takahirom.roborazzi:roborazzi-compose-desktop", version.ref = "roborazzi" }

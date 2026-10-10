@@ -7,8 +7,7 @@ import com.mobilebytelabs.remoteconfig.local.DeviceIdProvider
 import com.mobilebytelabs.remoteconfig.local.RemoteConfigLocalStore
 import co.touchlab.kermit.Logger
 import com.mobilebytelabs.remoteconfig.model.RemoteConfigItem
-import com.mobilebytelabs.remoteconfig.platform.Reachability
-import com.mobilebytelabs.remoteconfig.platform.currentReachability
+import io.github.mobilebytelabs.kmptoolkit.networkmonitor.NetworkMonitorProvider
 import com.mobilebytelabs.remoteconfig.network.ConfigEvent
 import com.mobilebytelabs.remoteconfig.network.ConfigFetchResult
 import com.mobilebytelabs.remoteconfig.network.RemoteConfigService
@@ -126,7 +125,11 @@ class RemoteConfigViewModel(
             // apps end up refusing to work on networks they would have been fine on, which is
             // why `Reachable` grants nothing and the fetch remains the real test.
             val budget = if (hasFallback) FETCH_TIMEOUT_MS else FIRST_FETCH_TIMEOUT_MS
-            if (!hasFallback && currentReachability() == Reachability.Unreachable) {
+            // `getOrNull` rather than `get`: an app that never called `remoteConfig { }` — or a
+            // test that did not install one — has no monitor, and the absence of an answer must
+            // read as "proceed", never as "offline". Only an explicit `false` short-circuits.
+            val offline = NetworkMonitorProvider.getOrNull()?.currentStatus?.isOnline == false
+            if (!hasFallback && offline) {
                 // Logged, not silent. "No config appeared and nothing was even attempted" is
                 // otherwise indistinguishable from a broken key or a misconfigured base URL,
                 // and an integrator has no way to tell which from the outside.
