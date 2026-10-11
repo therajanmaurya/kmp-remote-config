@@ -75,6 +75,15 @@ public final class com/mobilebytelabs/remoteconfig/ui/ConfigContent$Companion {
 	public final fun from (Lcom/mobilebytelabs/remoteconfig/model/RemoteConfigItem;)Lcom/mobilebytelabs/remoteconfig/ui/ConfigContent;
 }
 
+public abstract interface class com/mobilebytelabs/remoteconfig/ui/RefreshTicker {
+	public static final field Companion Lcom/mobilebytelabs/remoteconfig/ui/RefreshTicker$Companion;
+	public abstract fun awaitTick (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class com/mobilebytelabs/remoteconfig/ui/RefreshTicker$Companion {
+	public final fun getDefault ()Lcom/mobilebytelabs/remoteconfig/ui/RefreshTicker;
+}
+
 public final class com/mobilebytelabs/remoteconfig/ui/RemoteConfigDesign {
 	public static final field $stable I
 	public final fun getActionHeight-D9Ej5fM ()F
@@ -146,7 +155,8 @@ public final class com/mobilebytelabs/remoteconfig/ui/RemoteConfigViewModel : an
 	public static final field FETCH_TIMEOUT_MS J
 	public static final field FIRST_FETCH_TIMEOUT_MS J
 	public static final field TAG Ljava/lang/String;
-	public fun <init> (Lcom/mobilebytelabs/remoteconfig/network/RemoteConfigService;Lcom/mobilebytelabs/remoteconfig/RemoteConfigEvaluator;Lcom/mobilebytelabs/remoteconfig/local/RemoteConfigLocalStore;Lcom/mobilebytelabs/remoteconfig/local/DeviceIdProvider;)V
+	public fun <init> (Lcom/mobilebytelabs/remoteconfig/network/RemoteConfigService;Lcom/mobilebytelabs/remoteconfig/RemoteConfigEvaluator;Lcom/mobilebytelabs/remoteconfig/local/RemoteConfigLocalStore;Lcom/mobilebytelabs/remoteconfig/local/DeviceIdProvider;Lcom/mobilebytelabs/remoteconfig/ui/RefreshTicker;)V
+	public synthetic fun <init> (Lcom/mobilebytelabs/remoteconfig/network/RemoteConfigService;Lcom/mobilebytelabs/remoteconfig/RemoteConfigEvaluator;Lcom/mobilebytelabs/remoteconfig/local/RemoteConfigLocalStore;Lcom/mobilebytelabs/remoteconfig/local/DeviceIdProvider;Lcom/mobilebytelabs/remoteconfig/ui/RefreshTicker;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun activeFor (Ljava/util/Set;)Lcom/mobilebytelabs/remoteconfig/model/RemoteConfigItem;
 	public final fun fetchAndEvaluate (Ljava/lang/String;Ljava/util/Set;)V
 	public static synthetic fun fetchAndEvaluate$default (Lcom/mobilebytelabs/remoteconfig/ui/RemoteConfigViewModel;Ljava/lang/String;Ljava/util/Set;ILjava/lang/Object;)V

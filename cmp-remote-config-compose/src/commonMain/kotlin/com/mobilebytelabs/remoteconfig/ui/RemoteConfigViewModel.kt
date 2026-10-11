@@ -9,7 +9,6 @@ import co.touchlab.kermit.Logger
 import com.mobilebytelabs.remoteconfig.model.RemoteConfigItem
 import com.mobilebytelabs.remoteconfig.model.SdkSettings
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import io.github.mobilebytelabs.kmptoolkit.networkmonitor.NetworkMonitorProvider
 import com.mobilebytelabs.remoteconfig.network.ConfigEvent
@@ -58,6 +57,11 @@ class RemoteConfigViewModel(
     private val evaluator: RemoteConfigEvaluator,
     private val localStore: RemoteConfigLocalStore,
     private val deviceIdProvider: DeviceIdProvider,
+    /**
+     * When the next foreground refresh is due. Defaulted, so this is additive for every
+     * existing caller and for the Koin wiring; a test supplies one it releases by hand.
+     */
+    private val ticker: RefreshTicker = RefreshTicker.Default,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(RemoteConfigState())
@@ -90,6 +94,19 @@ class RemoteConfigViewModel(
     private var settings: SdkSettings = SdkSettings()
 
     private var refreshJob: Job? = null
+
+    /**
+     * Whether any fetch has COMPLETED — success, refusal or failure alike.
+     *
+     * The loop must not arm before it does. Arming on host registration meant the first
+     * interval was always the SDK's own default, because no response had yet said otherwise:
+     * a server asking for 15 minutes was ignored until the second arming, and an app the
+     * server had DISABLED still armed a tick before being told not to.
+     *
+     * Set on failure too, so an app that starts offline still retries on the default interval
+     * instead of never refreshing again.
+     */
+    private var answered = false
 
     /** The host allowed to render right now — the one offering the highest-priority config. */
     private val _surfaceOwner = MutableStateFlow<Any?>(null)
@@ -176,6 +193,7 @@ class RemoteConfigViewModel(
                         candidates.clear()
                         recomputeSurfaceOwner()
                     }
+                    answered = true
                     restartRefreshLoop()
                 }
 
@@ -185,6 +203,10 @@ class RemoteConfigViewModel(
                     _state.update {
                         it.copy(activeConfig = null, isLoading = false, rejection = result.code)
                     }
+                    // A refusal is an answer. Keep retrying on the default interval: a key
+                    // revoked by mistake and restored should recover without a relaunch.
+                    answered = true
+                    restartRefreshLoop()
                 }
 
                 // Transport failure or timeout: fall back to the last-good cached config, but
@@ -204,6 +226,10 @@ class RemoteConfigViewModel(
                             isLoading = false,
                         )
                     }
+                    // Transport failure is an answer too, or an app that started offline would
+                    // never try again.
+                    answered = true
+                    restartRefreshLoop()
                 }
             }
         }
@@ -231,7 +257,9 @@ class RemoteConfigViewModel(
         mounted[owner] = templateIds
         reconcileFetch()
         // The first host on screen starts the clock; later ones join the loop already running.
-        if (wasEmpty) restartRefreshLoop()
+        // Only once an answer has arrived — see `answered`. Before that the interval and the
+        // kill switch are unknown, and arming on a guess gets both wrong.
+        if (wasEmpty && answered) restartRefreshLoop()
     }
 
     /**
@@ -285,7 +313,7 @@ class RemoteConfigViewModel(
         val seconds = maxOf(settings.fetchIntervalSeconds, SdkSettings.MIN_FETCH_INTERVAL_SECONDS)
         refreshJob = viewModelScope.launch {
             while (isActive) {
-                delay(seconds * 1000L)
+                ticker.awaitTick(seconds * 1000L)
                 if (mounted.isEmpty()) break
                 // The union currently on screen, not the scope of the original fetch: the user
                 // may have navigated since, and refreshing what they left is wasted payload.

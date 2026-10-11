@@ -12,6 +12,7 @@ import com.mobilebytelabs.remoteconfig.local.DeviceIdProvider
 import com.mobilebytelabs.remoteconfig.local.RemoteConfigLocalStore
 import com.mobilebytelabs.remoteconfig.model.ActionType
 import com.mobilebytelabs.remoteconfig.network.RemoteConfigService
+import com.mobilebytelabs.remoteconfig.ui.RefreshTicker
 import com.mobilebytelabs.remoteconfig.ui.RemoteConfigViewModel
 import org.koin.core.module.Module
 import org.koin.core.module.dsl.singleOf
@@ -82,6 +83,14 @@ fun Module.remoteConfig(block: RemoteConfigBuilder.() -> Unit) {
     // The evaluator no longer takes an app-version supplier: the server owns the version
     // window, the schedule and the platform filter in 5.0.0.
     single { RemoteConfigEvaluator(get()) }
+    // Registered explicitly because `viewModelOf` resolves EVERY constructor parameter through
+    // Koin and ignores Kotlin default values — adding a defaulted `ticker` to the ViewModel is
+    // source-compatible for direct callers and a runtime NoDefinitionFoundException here. Unit
+    // tests construct the ViewModel directly and cannot catch that; the first launch does.
+    //
+    // A definition rather than a hardcoded default, so an app can substitute its own refresh
+    // cadence by overriding this single binding.
+    single<RefreshTicker> { RefreshTicker.Default }
     viewModelOf(::RemoteConfigViewModel)
 
     ActionDispatcher.register(builder.handlers)

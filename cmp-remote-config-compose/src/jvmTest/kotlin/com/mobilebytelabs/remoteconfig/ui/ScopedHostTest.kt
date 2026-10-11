@@ -14,6 +14,8 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import com.mobilebytelabs.remoteconfig.model.SdkSettings
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -494,5 +496,120 @@ class ScopedHostTest {
         // The interval floor is 60s, so no refresh is due yet either way; what this pins is
         // that unregistering does not leave a job behind that would fire later.
         assertEquals(1, seen.size)
+    }
+
+    // ── the refresh TICK ───────────────────────────────────────────────────────────────────
+
+    /**
+     * A ticker released by hand, recording the interval it was handed.
+     *
+     * The loop's real `delay` could not be driven from a test: skipping 60 seconds needs a
+     * virtual clock, the fetch underneath needs a real one, and a virtual clock leaps past the
+     * HTTP call and turns it into a timeout. With the wait injected, the test releases a tick
+     * and everything else stays on real time.
+     */
+    private class ManualTicker : RefreshTicker {
+        val intervals = mutableListOf<Long>()
+        private val gate = Channel<Unit>(Channel.UNLIMITED)
+        private val arrived = Channel<Unit>(Channel.UNLIMITED)
+
+        override suspend fun awaitTick(intervalMs: Long) {
+            intervals += intervalMs
+            arrived.send(Unit)
+            gate.receive()
+        }
+
+        /** Wait until the loop is parked on a tick, then release exactly one. */
+        suspend fun releaseOne() {
+            arrived.receive()
+            gate.send(Unit)
+        }
+    }
+
+    private fun tickingVm(
+        settingsJson: String,
+        ticker: RefreshTicker,
+        capture: MutableList<String>,
+    ): RemoteConfigViewModel {
+        val engine = MockEngine { request ->
+            capture.add(request.url.toString())
+            respond(
+                content = """{"schema_version":1,"configs":[${item("a", "announcement")}],"settings":$settingsJson}""",
+                status = HttpStatusCode.OK,
+                headers = headersOf(HttpHeaders.ContentType, "application/json"),
+            )
+        }
+        val store = RemoteConfigLocalStore(MapSettings())
+        return RemoteConfigViewModel(
+            service = RemoteConfigService(
+                baseUrl = "https://example.supabase.co/functions/v1",
+                publishableKey = "rck_test_abc",
+                packageName = "com.example.app",
+                platform = "android",
+                appVersion = "1.0.0",
+                httpClient = HttpClient(engine),
+                deviceId = "device-under-test",
+            ),
+            evaluator = RemoteConfigEvaluator(store),
+            localStore = store,
+            deviceIdProvider = DeviceIdProvider(MapSettings()),
+            ticker = ticker,
+        )
+    }
+
+    @Test
+    fun a_tick_actually_refetches() = runBlocking {
+        // THE property the whole feature rests on, and the one that went untested when the wait
+        // was a bare `delay`: an operator sets an interval, publishes, and a running app picks
+        // the change up without being relaunched.
+        val seen = mutableListOf<String>()
+        val ticker = ManualTicker()
+        val v = tickingVm("""{"enabled":true,"fetch_interval_seconds":900}""", ticker, seen)
+
+        v.reg(emptySet())
+        withTimeout(10_000) { v.state.first { !it.isLoading } }
+        assertEquals(1, seen.size, "precondition: the first fetch landed")
+
+        withTimeout(10_000) { ticker.releaseOne() }
+        withTimeout(10_000) { while (seen.size < 2) delay(10) }
+        assertEquals(2, seen.size, "the interval elapsed and nothing re-fetched")
+    }
+
+    @Test
+    fun the_tick_honours_the_interval_the_server_asked_for() = runBlocking {
+        // 900s is the server's answer; the SDK must wait that long, not its own default.
+        val ticker = ManualTicker()
+        val v = tickingVm("""{"enabled":true,"fetch_interval_seconds":900}""", ticker, mutableListOf())
+        v.reg(emptySet())
+        withTimeout(10_000) { v.state.first { !it.isLoading } }
+        withTimeout(10_000) { while (ticker.intervals.isEmpty()) delay(10) }
+
+        assertEquals(900_000L, ticker.intervals.first())
+    }
+
+    @Test
+    fun an_interval_below_the_floor_is_raised_to_it() = runBlocking {
+        // MIN_FETCH_INTERVAL_SECONDS exists so a misconfigured app cannot hammer the control
+        // plane every second. The server's number is honoured, but not below the floor.
+        val ticker = ManualTicker()
+        val v = tickingVm("""{"enabled":true,"fetch_interval_seconds":1}""", ticker, mutableListOf())
+        v.reg(emptySet())
+        withTimeout(10_000) { v.state.first { !it.isLoading } }
+        withTimeout(10_000) { while (ticker.intervals.isEmpty()) delay(10) }
+
+        assertEquals(SdkSettings.MIN_FETCH_INTERVAL_SECONDS * 1000L, ticker.intervals.first())
+    }
+
+    @Test
+    fun a_disabled_app_never_ticks() = runBlocking {
+        // The kill switch stops the loop as well as the surface: a disabled app must not keep
+        // polling the plane that just told it to stop.
+        val ticker = ManualTicker()
+        val v = tickingVm("""{"enabled":false,"fetch_interval_seconds":60}""", ticker, mutableListOf())
+        v.reg(emptySet())
+        withTimeout(10_000) { v.state.first { !it.isLoading } }
+        delay(300)
+
+        assertTrue(ticker.intervals.isEmpty(), "a disabled app armed a refresh tick")
     }
 }
