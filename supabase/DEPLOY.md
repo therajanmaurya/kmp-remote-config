@@ -114,7 +114,7 @@ Set in the Supabase dashboard; values come from the vault and are never echoed.
 |---|---|---|
 | `SUPABASE_URL` | `kmp-remote-config-supabase-url` | |
 | `SUPABASE_SERVICE_ROLE_KEY` | `kmp-remote-config-supabase-service-role-key` | server-only; never a `NEXT_PUBLIC_*` name |
-| `RC_ASSERTION_SECRET` | `kmp-remote-config-assertion-secret` | generate with `source: generate:openssl-rand-32`; alias registered, value not yet pushed |
+| `RC_ASSERTION_SECRET` | `kmp-remote-config-assertion-secret` | generate with `--generate hex64` (32 random bytes as 64 hex chars); pushed + synced to edge |
 | `ATTEST_VERIFY_ENDPOINT` | — | **not provisioned.** While unset, `/v1/attest` REFUSES rather than passing: an unverifiable attestation that succeeded would hand assertions to anyone while looking secure |
 
 ## Migrations and rollbacks
@@ -181,6 +181,27 @@ wrong boundary and simply makes the product unreachable. The setting is committe
 Set as a function secret via `core/scripts/secrets-sync-to-supabase.sh --apply` (the sanctioned
 path — `supabase-connect-guard.sh` refuses a hand-rolled `secrets set`). Confirmed present on
 the project by name through the Management API.
+
+**Rotate with** `core/scripts/secrets-rotate.sh kmp-remote-config-assertion-secret --reason "<why>"
+--generate hex64`, then re-run the sync above. The valid `--generate` recipes are
+`random-password | hex64 | uuid` — there is no `openssl-rand-32` recipe, despite what this table
+said until 2026-10-11.
+
+Rotation is cheap here and does not coordinate with any client: the secret is **server-side only**
+(`/v1-attest` mints assertions with it, `/v1-configs` and `/v1-events` verify them), so no shipped
+app holds a copy. Outstanding assertions die with it, which is the point — and they are short-lived
+anyway (`TTL_MS` = 15 min, `SKEW_MS` = 60 s in `v1-attest/assertion.ts`).
+
+**Reading the sync's hash line.** It prints `sha256:$(echo "$VALUE" | sha256sum)`, and `echo`
+appends a newline — so that digest is of the value **plus a trailing newline** and will NOT equal
+the digest the Management API reports for the same secret. The vault file is 65 bytes (64 hex + LF);
+Supabase stores the 64 hex chars. Both were verified equal modulo that newline on the 2026-10-11
+rotation. The effective HMAC key is the 64 hex characters, so anything that ever consumes this from
+the vault file must strip the newline.
+
+Rotated 2026-10-11 (`exposed-in-chat`: the value had been committed as `__supabase_edge__` in
+`d28b251` and pushed to origin). Verified after rotation by the 19-check
+`supabase/tests/e2e_sdk_contract.sh` against the deployed plane.
 
 ### Standing caveat: `/v1/attest` has nothing behind it
 
