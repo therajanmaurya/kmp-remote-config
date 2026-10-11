@@ -12,6 +12,7 @@ import com.mobilebytelabs.remoteconfig.local.DeviceIdProvider
 import com.mobilebytelabs.remoteconfig.local.RemoteConfigLocalStore
 import com.mobilebytelabs.remoteconfig.model.ActionType
 import com.mobilebytelabs.remoteconfig.network.RemoteConfigService
+import co.touchlab.kermit.Logger
 import com.mobilebytelabs.remoteconfig.ui.RefreshTicker
 import com.mobilebytelabs.remoteconfig.ui.RemoteConfigViewModel
 import org.koin.core.module.Module
@@ -54,7 +55,16 @@ fun Module.remoteConfig(block: RemoteConfigBuilder.() -> Unit) {
     // Installed at DI setup rather than at first use: the platform monitors are watchers, and
     // one started by the first fetch has not reported yet — so the single launch the check
     // exists to help is the one launch it would miss. `install` is idempotent.
-    NetworkMonitorProvider.install()
+    // Guarded because installing a connectivity WATCHER must never stop the SDK from
+    // initialising. On Node the library's JS monitor throws a ReferenceError reaching for a
+    // browser global (JsNetworkMonitor.kt:38), which took the whole `remoteConfig { }` block
+    // down with it — an SSR or Node host could not construct the SDK at all.
+    //
+    // Failing open matches how the reachability check is read: no monitor means
+    // `getOrNull()` returns null, which means "proceed", which is exactly the behaviour this
+    // SDK had before connectivity was consulted at all.
+    runCatching { NetworkMonitorProvider.install() }
+        .onFailure { Logger.w(TAG) { "network monitor unavailable: ${it::class.simpleName}" } }
 
     val builder = RemoteConfigBuilder().apply(block)
     val settings = builder.build()
@@ -185,3 +195,5 @@ class RemoteConfigBuilder internal constructor() {
  * comes from the publishable key + package + cert digest the server verifies per request.
  */
 internal const val DEFAULT_BASE_URL = "https://gohifhjcvsawcdhcpbkw.supabase.co/functions/v1"
+
+private const val TAG: String = "RemoteConfig"

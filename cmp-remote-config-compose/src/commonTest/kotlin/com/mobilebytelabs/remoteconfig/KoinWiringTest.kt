@@ -13,7 +13,7 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import org.koin.dsl.koinApplication
 import org.koin.dsl.module
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -40,6 +40,15 @@ import kotlin.test.assertNotNull
  * The ViewModel is the one that matters most: `viewModelOf(::RemoteConfigViewModel)` is a
  * constructor reference, so ANY parameter added to it without a matching definition fails here
  * rather than at the first composition.
+ *
+ * In `commonTest`, not `jvmTest`. A missing DEFINITION cannot be platform-specific, but the
+ * `single { }` lambdas run platform code — `RemoteConfigLocalStore()` and `DeviceIdProvider()`
+ * both reach `defaultSettings()`, which is `expect`/`actual`. A JVM-only run would leave the
+ * one part of this graph that genuinely differs per target unexercised on every target but one.
+ *
+ * `runTest` rather than `runBlocking`: the latter does not exist on JS or wasm. There is no
+ * virtual-clock hazard here because `fetchConfigs` has no `withTimeoutOrNull` of its own — the
+ * budget lives in the ViewModel, which this test does not drive.
  */
 class KoinWiringTest {
 
@@ -118,7 +127,7 @@ class KoinWiringTest {
     }
 
     @Test
-    fun the_di_built_service_sends_the_identity_the_module_registered() = runBlocking {
+    fun the_di_built_service_sends_the_identity_the_module_registered() = runTest {
         // Defect #1 was NOT a missing definition — the service resolved perfectly and was simply
         // handed no deviceId, so `X-RC-Device` went unsent and the server excluded the caller
         // from every partial rollout. Resolving a definition proves it exists; only using it
