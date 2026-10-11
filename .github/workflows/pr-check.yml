@@ -85,6 +85,25 @@ jobs:
       - name: Run tests + Kover XML report
         run: ./gradlew koverXmlReport
 
+      # Kover instruments JVM only, so every job above this line leaves Kotlin/JS untested — and
+      # JS is the one target where the SDK can fail to INITIALISE rather than merely misbehave.
+      # `defaultSettings()` resolves to multiplatform-settings' no-arg factory, whose no-delegate
+      # branch reads the browser global `localStorage`; under Node that is a ReferenceError thrown
+      # during construction, inside a Koin `single { }`, so `remoteConfig { }` could not be
+      # installed at all by an SSR or prerender host. webSettingsMain degrades to InMemorySettings
+      # to keep that from happening, and jsNodeTest is the only task that proves it.
+      #
+      # Named per module rather than run from the root: a bare `./gradlew jsNodeTest` would also
+      # pull in :samples:*, and run-native-tests.sh cannot exclude them here — it derives the
+      # exclusion marker by stripping "Test", giving `jsNode(` which matches no build file.
+      - name: Run JS (Node) tests
+        run: ./gradlew :cmp-remote-config:jsNodeTest :cmp-remote-config-compose:jsNodeTest --continue
+
+      # A green test task is not evidence tests ran — see the script's own header.
+      - name: Assert JS tests actually executed
+        if: always()
+        run: bash .github/scripts/assert-tests-ran.sh jsNodeTest
+
       # Non-gating today: the verify floor is `koverLineMin=0` because coverage had never been
       # measured on this repo before it was wired up. Raise the default in KoverConventionPlugin
       # (or pass -PkoverLineMin=N here) to turn this into a real gate once a baseline is agreed.

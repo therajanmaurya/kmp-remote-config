@@ -27,12 +27,18 @@ import com.russhwolf.settings.Settings
 internal expect fun defaultSettings(): Settings
 
 /**
- * Process-lifetime [Settings] for targets with no platform-provided store (linuxX64, mingwX64).
+ * Process-lifetime [Settings] for hosts with nowhere to persist to.
  *
- * A deliberate, documented degradation rather than a no-op or a crash: impression counts and
- * cooldowns work correctly *within* a run, which is what a server or CLI evaluating flags in one
- * process actually needs, and they simply do not survive a restart. A host that needs persistence
- * passes its own [Settings] — the constructor parameter exists precisely for that.
+ * Two kinds reach this, for different reasons. linuxX64 and mingwX64 have no platform store at
+ * all, so multiplatform-settings declares no `Settings()` for them and the choice is made at
+ * compile time. js and wasmJs DO have one, but only in a browser — under Node the factory throws
+ * (see `DefaultSettings.web.kt`), so there the choice is made at runtime.
+ *
+ * Either way a deliberate, documented degradation rather than a no-op or a crash: impression
+ * counts and cooldowns work correctly *within* a run, which is what a server, CLI, or
+ * server-side render evaluating flags in one process actually needs, and they simply do not
+ * survive a restart. A host that needs persistence passes its own [Settings] — the constructor
+ * parameter exists precisely for that.
  */
 @OptIn(ExperimentalSettingsApi::class)
 internal class InMemorySettings : Settings {

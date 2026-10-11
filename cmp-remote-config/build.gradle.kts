@@ -123,9 +123,21 @@ kotlin {
         // compiling. Declared explicitly now — relying on a transport dependency to supply a
         // storage factory was never intentional.
         bundledSettingsMain.dependencies { implementation(libs.multiplatform.settings.no.arg) }
-        listOf("androidMain", "jvmMain", "jsMain", "wasmJsMain", "appleMain").forEach {
+        listOf("androidMain", "jvmMain", "appleMain").forEach {
             getByName(it).dependsOn(bundledSettingsMain)
         }
+
+        // js / wasmJs get their OWN flavour rather than joining either of the two above.
+        // `Settings()` IS declared for them, so this source set exists for a different reason than
+        // inMemorySettingsMain: multiplatform-settings' no-delegate branch evaluates the bare
+        // identifier `localStorage`, a BROWSER global. Under Node — SSR, jsNodeTest, any
+        // server-side host — that is a ReferenceError thrown at CONSTRUCTION, so the SDK fails to
+        // initialise at all instead of merely losing persistence. The fallback must not reach
+        // android/jvm/apple: there, a throwing `Settings()` is a real fault worth surfacing, not
+        // something to downgrade silently into a store that forgets on restart.
+        val webSettingsMain = create("webSettingsMain").apply { dependsOn(getByName("commonMain")) }
+        webSettingsMain.dependencies { implementation(libs.multiplatform.settings.no.arg) }
+        listOf("jsMain", "wasmJsMain").forEach { getByName(it).dependsOn(webSettingsMain) }
 
         val inMemorySettingsMain = create("inMemorySettingsMain").apply { dependsOn(getByName("commonMain")) }
         listOf("linuxMain", "mingwMain").forEach { getByName(it).dependsOn(inMemorySettingsMain) }
