@@ -229,4 +229,60 @@ class TemplateGoldenTest {
         "announcement_minimal",
         item("announcement", """{"title":"Scheduled maintenance","body":"We will be back shortly."}""", display = "dialog"),
     )
+
+    /**
+     * The four bodies added on 2026-10-16, when `information`, `maintenance`, `geo_notice` and
+     * `onboarding_tip` stopped sharing IncidentBody and `notification` stopped sharing
+     * AnnouncementBody.
+     *
+     * They are captured here because the aliasing survived as long as it did precisely BECAUSE
+     * nothing rendered them: the suite had goldens for seven template ids and the five borrowed
+     * ones were not among them, so an onboarding tip could render as an amber outage warning
+     * with the whole suite green. A body with no golden is a body no one is watching.
+     *
+     * Each payload below uses ONLY fields the template's payload_schema declares (migration
+     * 004), so a golden can never pin a rendering of a field the server would reject.
+     */
+    @Test
+    fun information_dialog() = golden(
+        "information",
+        item("information", """{"title":"Scheduled maintenance on Sunday","body":"Sync will pause between 02:00 and 04:00 UTC while we move storage. Nothing you have uploaded is affected.","severity":"info"}""", display = "banner"),
+    )
+
+    /** The severity the information template CAN reach — proves it is not stuck on the neutral accent. */
+    @Test
+    fun information_warning() = golden(
+        "information_warning",
+        item("information", """{"title":"Exports are slower than usual","body":"Large album exports may take a few extra minutes today.","severity":"warning"}""", display = "banner"),
+    )
+
+    @Test
+    fun notification_banner() = golden(
+        "notification",
+        item("notification", """{"title":"Backup finished","body":"1,284 photos from last weekend are now backed up and safe.","cta_label":"View","cta_action":"app://library/recent"}""", display = "dialog"),
+    )
+
+    @Test
+    fun geo_notice_dialog() = golden(
+        "geo_notice",
+        item("geo_notice", """{"title":"A note for users in the EU","body":"Your photos are stored on servers inside the EU, and we have updated how we describe cross-border transfers.","regions":["European Union"]}""", display = "dialog"),
+    )
+
+    @Test
+    fun onboarding_tip_banner() = golden(
+        "onboarding_tip",
+        item("onboarding_tip", """{"title":"Pinch to see a whole year","body":"Pinch the grid to zoom out through months and years, then pinch back in to land on a day."}""", display = "banner"),
+    )
+
+    /**
+     * maintenance on its OTHER declared display. `allowed_displays` is {fullscreen, banner} and
+     * the body branches between a compact row and a centred takeover, so capturing only the
+     * banner (as `maintenance_banner` above does) would leave half of that branch unseen — which
+     * is the same blind spot, one level down, that let the aliasing survive.
+     */
+    @Test
+    fun maintenance_fullscreen() = golden(
+        "maintenance_fullscreen",
+        item("maintenance", """{"title":"Back in about an hour","body":"We are moving photo storage to make sync faster. Your library is safe and nothing is being deleted.","window_start":"2026-11-15T02:00:00Z","window_end":"2026-11-15T04:00:00Z"}""", display = "fullscreen", dismissible = false),
+    )
 }

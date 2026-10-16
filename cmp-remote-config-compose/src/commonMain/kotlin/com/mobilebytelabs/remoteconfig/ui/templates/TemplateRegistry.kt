@@ -35,15 +35,21 @@ internal typealias TemplateBody = @Composable (RemoteConfigItem, TemplatePayload
  */
 internal val TEMPLATE_BODIES: Map<String, TemplateBody> = mapOf(
     "announcement" to { item, p, a -> AnnouncementBody(item, p, a) },
-    "notification" to { item, p, a -> AnnouncementBody(item, p, a) },
     "update_available" to { item, p, a -> UpdateAvailableBody(item, p, a) },
     "policy_update" to { item, p, a -> PolicyUpdateBody(item, p, a) },
     "paywall_upsell" to { item, p, a -> PaywallBody(item, p, a) },
     "incident_outage" to { item, p, a -> IncidentBody(item, p, a) },
-    "information" to { item, p, a -> IncidentBody(item, p, a) },
-    "maintenance" to { item, p, a -> IncidentBody(item, p, a) },
-    "geo_notice" to { item, p, a -> IncidentBody(item, p, a) },
-    "onboarding_tip" to { item, p, a -> IncidentBody(item, p, a) },
+    // ONE BODY EACH (2026-10-16). These five used to borrow a renderer built for a different
+    // template — `information`, `maintenance`, `geo_notice` and `onboarding_tip` all pointed at
+    // IncidentBody, and `notification` at AnnouncementBody. Nothing chose that; the rows were
+    // aimed at whatever already existed. The user-visible result was an onboarding tip arriving
+    // as an amber outage warning, and a total-outage maintenance screen that looked like a
+    // degraded-service notice. Each now renders its own design (mockups 10-15).
+    "notification" to { item, p, a -> NotificationBody(item, p, a) },
+    "information" to { item, p, a -> InformationBody(item, p, a) },
+    "maintenance" to { item, p, a -> MaintenanceBody(item, p, a) },
+    "geo_notice" to { item, p, a -> GeoNoticeBody(item, p, a) },
+    "onboarding_tip" to { item, p, a -> OnboardingTipBody(item, p, a) },
     "survey_nps" to { item, p, a -> SurveyNpsBody(item, p, a) },
     "whats_new" to { item, p, a -> WhatsNewBody(item, p, a) },
     "promo_offer" to { item, p, a -> PromoOfferBody(item, p, a) },
